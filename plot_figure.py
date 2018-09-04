@@ -40,7 +40,7 @@ class PlotFigure(object):
 						self._plot_star(ax, (x, y), policy[x,y,index])
 					plt.plot([x,], [y,], marker='o', markersize=2, color="green")
 		
-		if not os.path.exists('./plot/'+self.save_name):
-			os.makedirs('./plot/'+self.save_name)
-		plt.savefig('./plot/'+self.save_name+'/'+str(epoch)+'.png', bbox_inches='tight')
+		if not os.path.exists('../plot/'+self.save_name):
+			os.makedirs('../plot/'+self.save_name)
+		plt.savefig('../plot/'+self.save_name+'/'+str(epoch)+'.png', bbox_inches='tight')
 		#plt.pause(0.00001)

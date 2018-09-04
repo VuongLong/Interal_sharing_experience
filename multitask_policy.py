@@ -262,7 +262,7 @@ class MultitaskPolicy(object):
 			#---------------------------------------------------------------------------------------------------------------------#	
 			# SAVE MODEL
 			if epoch % self.save_model == 0:
-				saver.save(sess, './models/'+self.save_name+'.ckpt')
+				saver.save(sess, '../models/'+self.save_name+'.ckpt')
 				print("Model saved")
 			#---------------------------------------------------------------------------------------------------------------------#		
 			epoch += 1  

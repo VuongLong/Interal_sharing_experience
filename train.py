@@ -41,11 +41,11 @@ def training(test_time, map_index, share_exp, combine_gradent, num_episide):
 
 	if share_exp:
 		if combine_gradent: 
-			writer = tf.summary.FileWriter("./plot/log/Combine_gradients")
+			writer = tf.summary.FileWriter("../plot/log/Combine_gradients")
 		else:	
-			writer = tf.summary.FileWriter("./plot/log/Share_samples")
+			writer = tf.summary.FileWriter("../plot/log/Share_samples")
 	else:
-		writer = tf.summary.FileWriter("./plot/log/Non")
+		writer = tf.summary.FileWriter("../plot/log/Non")
 	
 	test_name =  "map_"+str(map_index)+"_test_"+str(test_time)		
 	tf.summary.scalar(test_name, policy.mean_reward)
@@ -63,7 +63,7 @@ def training(test_time, map_index, share_exp, combine_gradent, num_episide):
 									num_epochs = 1000,
 									gamma = 0.99,
 									plot_model = 50,
-									save_model = 100,
+									save_model = 1,
 									save_name = network_name_scope+'_'+test_name,
 									num_episide = num_episide,
 									share_exp = share_exp,
