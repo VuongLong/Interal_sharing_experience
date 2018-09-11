@@ -1,13 +1,14 @@
 import matplotlib.pyplot as plt
 import random
-from random import randint
 import numpy as np
-from env.sxsy import SXSY
 import json
+from env.map import ENV_MAP
+from env.sxsy import SXSY
+from random import randint
 
-MAP = ENV_MAP[4]['map']
-bounds_x = ENV_MAP[4]['size_x']
-bounds_y = ENV_MAP[4]['size_y']
+MAP = ENV_MAP[5]['map']
+bounds_x = ENV_MAP[5]['size_x']
+bounds_y = ENV_MAP[5]['size_y']
 SMAP = []
 SXSY = {}
 for i in range(1000):
@@ -21,7 +22,7 @@ for i in range(1000):
 		start.append([sx,sy])
 	SMAP.append(start)	
 
-SXSY[4] = SMAP	
+SXSY[5] = SMAP	
 file = open('./env/sxsy.py','a')	
 file.write('SXSY = ')
 file.write(json.dumps(SXSY))

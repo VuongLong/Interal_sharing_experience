@@ -50,14 +50,14 @@ class PGNetwork:
             
             self.pi = tf.nn.softmax(self.logits)
             
-            self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits_v2(logits = self.logits, labels = self.actions)
+            self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(logits = self.logits, labels = self.actions)
             
             self.loss = tf.reduce_mean(self.neg_log_prob * self.rewards)
             
             self.variables = [self.W_fc1, self.b_fc1, self.W_fc2, self.b_fc2]
             
-            self.optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
-            self.gvs = self.optimizer.compute_gradients(self.loss,self.variables)
+            self.optimizer = tf.train.RMSPropOptimizer(learning_rate = self.learning_rate)
+            self.gvs = self.optimizer.compute_gradients(self.loss, self.variables)
 
             self.placeholder_gradients = []
             for i, grad_var in enumerate(self.gvs):
@@ -102,7 +102,7 @@ class ZNetwork:
                 # tf.nn.softmax_cross_entropy_with_logits computes the cross entropy of the result after applying the softmax function
                 # If you have single-class labels, where an object can only belong to one class, you might now consider using 
                 # tf.nn.sparse_softmax_cross_entropy_with_logits so that you don't have to convert your labels to a dense one-hot array. 
-                self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits_v2(logits = self.logits, labels = self.actions)
+                self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits(logits = self.logits, labels = self.actions)
                 self.loss = tf.reduce_mean(self.neg_log_prob * self.discounted_episode_rewards_) 
         
     

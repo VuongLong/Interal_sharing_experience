@@ -1,11 +1,11 @@
-from env.terrain import Terrain
-import numpy as np           # Handle matrices
-import random                # Handling random number generation
-import time                  # Handling time calculation
-import math
-from collections import deque# Ordered collection with ends
-import matplotlib.pyplot as plt # Display graphs
 import sys
+import numpy as np           		# Handle matrices
+import random                		# Handling random number generation
+import time                  		# Handling time calculation
+import math
+
+from env.terrain import Terrain
+from collections import deque		# Ordered collection with ends
 
 class RolloutThread(object):
 	
@@ -47,9 +47,8 @@ class RolloutThread(object):
 				#self.env.resetgame(self.task, self.start_x, self.start_y)
 				#state = self.env.player.getposition()
 
-
-			action = np.random.choice(range(len(self.policy[state[0],state[1],self.task])), 
-										  p=np.array(self.policy[state[0],state[1],self.task])/sum(self.policy[state[0],state[1],self.task]))  # select action w.r.t the actions prob
+			pi = self.policy[state[0], state[1], self.task]
+			action = np.random.choice(range(len(pi)), p =np.array(pi)/sum(pi))  # select action w.r.t the actions prob
 
 			reward, done = self.env.player.action(action)
 			
