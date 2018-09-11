@@ -19,16 +19,14 @@ class PGNetwork:
         return tf.Variable(initial, name=name)
 
 
-    def __init__(self, state_size, task_size, action_size, learning_rate, name='PGNetwork'):
+    def __init__(self, state_size, action_size, learning_rate, name='PGNetwork'):
         self.state_size = state_size
-        self.task_size = task_size
         self.action_size = action_size
         self.learning_rate = learning_rate
 
 
         with tf.variable_scope(name):
             self.inputs= tf.placeholder(tf.float32, [None, self.state_size])
-            self.inputt= tf.placeholder(tf.float32, [None, self.task_size])
             self.actions = tf.placeholder(tf.int32, [None, self.action_size])
             self.rewards = tf.placeholder(tf.float32, [None, ])
         
@@ -36,12 +34,9 @@ class PGNetwork:
             # Add this placeholder for having this variable in tensorboard
             self.mean_reward = tf.placeholder(tf.float32)
             
-            self.flatten = tf.concat(values=[self.inputs, self.inputt], axis=1)
-        
-
-            self.W_fc1 = self._fc_weight_variable([self.state_size+self.task_size, 256])
-            self.b_fc1 = self._fc_bias_variable([256], self.state_size+self.task_size)
-            self.fc1 = tf.nn.relu(tf.matmul(self.flatten, self.W_fc1) + self.b_fc1)
+            self.W_fc1 = self._fc_weight_variable([self.state_size, 256])
+            self.b_fc1 = self._fc_bias_variable([256], self.state_size)
+            self.fc1 = tf.nn.relu(tf.matmul(self.inputs, self.W_fc1) + self.b_fc1)
 
             self.W_fc2 = self._fc_weight_variable([256, self.action_size])
             self.b_fc2 = self._fc_bias_variable([self.action_size], 256)

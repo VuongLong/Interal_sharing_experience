@@ -11,12 +11,16 @@ from collections import deque		# Ordered collection with ends
 
 class PlotFigure(object):
 	
-	def __init__(self, save_name, env, num_task):
+	def __init__(self, save_name, env, num_task, save_folder):
 		self.env = env
 		self.range_x = [0, self.env.bounds_x[1]+1]
 		self.range_y = [0, self.env.bounds_y[1]+1]
 		self.num_task = num_task
 		self.save_name = save_name
+		self.save_folder = save_folder
+
+		if not os.path.isdir(os.path.join(self.save_folder)):
+			os.mkdir(os.path.join(self.save_folder))
 
 	def _plot_point(self, ax, point, angle, length):
 		x, y = point
@@ -44,8 +48,8 @@ class PlotFigure(object):
 						self._plot_star(ax, (x, y), policy[x,y,index])
 					plt.plot([x,], [y,], marker='o', markersize=2, color="green")
 		
-		if not os.path.exists('plot/' + self.save_name):
-			os.mkdir('plot/' + self.save_name)
+		if not os.path.isdir(os.path.join(self.save_folder, self.save_name)):
+			os.mkdir(os.path.join(self.save_folder, self.save_name))
 
-		plt.savefig('plot/' + self.save_name + '/' + str(epoch) + '.png', bbox_inches='tight')
+		plt.savefig(os.path.join(self.save_folder, self.save_name, str(epoch) + '.png'), bbox_inches='tight')
 		#plt.pause(0.00001)

@@ -22,8 +22,7 @@ class Rollout(object):
 		self.map_index = map_index
 		self.env = Terrain(map_index)
 		self.num_task = num_task
-		self.states, self.tasks, self.actions, self.rewards = [[],[]], [[],[]], [[],[]], [[],[]]
-
+		self.states, self.tasks, self.actions, self.rewards = [self.holder_factory(self.num_task) for i in range(4)]
 
 	def _rollout_process(self, sess, network, task, sx, sy, current_policy):
 		thread_rollout = RolloutThread(
@@ -36,15 +35,17 @@ class Rollout(object):
 									map_index = self.map_index)
 
 		ep_states, ep_tasks, ep_actions, ep_rewards = thread_rollout.rollout()
-		
+		print(ep_rewards)
 		self.states[task].append(ep_states)
 		self.tasks[task].append(ep_tasks)
 		self.actions[task].append(ep_actions)
 		self.rewards[task].append(ep_rewards)
 
+	def holder_factory(self, size):
+		return [ [] for i in range(size) ]
 
 	def rollout_batch(self, sess, network, policy, epoch):
-		self.states, self.tasks, self.actions, self.rewards = [[],[]], [[],[]], [[],[]], [[],[]]
+		self.states, self.tasks, self.actions, self.rewards = [self.holder_factory(self.num_task) for i in range(4)]
 		train_threads = []
 		for i in range(self.number_episode):
 			[sx, sy] = SXSY[self.map_index][epoch % 1000][i]

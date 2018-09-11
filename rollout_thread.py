@@ -42,10 +42,6 @@ class RolloutThread(object):
 				print('re-rollout')
 				sys.stdout.flush()
 				break
-				#states, tasks, actions, rewards_of_episode = [], [], [], []
-				#step = 1
-				#self.env.resetgame(self.task, self.start_x, self.start_y)
-				#state = self.env.player.getposition()
 
 			pi = self.policy[state[0], state[1], self.task]
 			action = np.random.choice(range(len(pi)), p =np.array(pi)/sum(pi))  # select action w.r.t the actions prob

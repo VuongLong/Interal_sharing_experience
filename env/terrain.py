@@ -34,7 +34,7 @@ class Terrain:
 
     def getreward(self):
         done = False
-        reward = -0.05
+        reward = -0.01
 
         x_pos, y_pos = self.reward_locs[self.task]
         
