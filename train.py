@@ -2,7 +2,7 @@ import tensorflow as tf
 import os 
 
 from datetime import datetime
-from network import PGNetwork
+from network import PGNetwork, PGNetwork_deeper, PGNetwork_wider
 from network import ZNetwork
 from multitask_policy import MultitaskPolicy
 from env.terrain import Terrain
@@ -17,7 +17,7 @@ if ask == '' or ask.lower() == 'y':
 else:
 	TIMER = sorted(os.listdir('logs/'))[-1]
 
-def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_init, num_episode):
+def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_init, num_episode, use_laser = False):
 	tf.reset_default_graph()
 	
 	learning_rate = 0.001
@@ -30,15 +30,26 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 	else:
 		network_name_scope = 'Non'
 
-	env = Terrain(map_index)
+	env = Terrain(map_index, use_laser)
 	policies = []
-	for i in range(num_task):
-		policy_i = PGNetwork(
-						state_size 		= env.cv_state_onehot.shape[0], 
+	# for i in range(num_task):
+	# 	policy_i = PGNetwork(
+	# 					state_size 		= env.cv_state_onehot.shape[1], 
+	# 					action_size 	= ACTION_SIZE, 
+	# 					learning_rate 	= learning_rate
+	# 					)
+	# 	policies.append(policy_i)
+	policies.append(PGNetwork_wider(
+						state_size 		= env.cv_state_onehot.shape[1], 
 						action_size 	= ACTION_SIZE, 
 						learning_rate 	= learning_rate
-						)
-		policies.append(policy_i)
+					))
+
+	policies.append(PGNetwork_deeper(
+							state_size 		= env.cv_state_onehot.shape[1], 
+							action_size 	= ACTION_SIZE, 
+							learning_rate 	= learning_rate
+					))
 
 	gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.2)
 
@@ -51,19 +62,19 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 
 	if not os.path.isdir(log_folder):
 		os.mkdir(log_folder)
-
+		os.mkdir(os.path.join(log_folder, 'Non_' + sort_init + "_laser_" + str(use_laser)))
+		os.mkdir(os.path.join(log_folder, 'Combine_gradients'))
+		os.mkdir(os.path.join(log_folder, 'Share_samples'))
+		
 	if share_exp:
 		if combine_gradent: 
-			os.mkdir(os.path.join(log_folder, 'Combine_gradients'))
 			writer = tf.summary.FileWriter(os.path.join(log_folder, 'Combine_gradients'))
 		else:	
-			os.mkdir(os.path.join(log_folder, 'Share_samples'))
 			writer = tf.summary.FileWriter(os.path.join(log_folder, 'Share_samples'))
 	else:
-		os.mkdir(os.path.join(log_folder, 'Non_' + sort_init))
-		writer = tf.summary.FileWriter(os.path.join(log_folder, 'Non_' + sort_init))
+		writer = tf.summary.FileWriter(os.path.join(log_folder, 'Non_' + sort_init + "_laser_" + str(use_laser)))
 	
-	test_name =  "map_" + str(map_index) + "_test_" + str(test_time) + "_sortinit_" + sort_init
+	test_name =  "map_" + str(map_index) + "_test_" + str(test_time) + "_sortinit_" + sort_init + "_laser_" + str(use_laser)
 	tf.summary.scalar(test_name, tf.reduce_mean([policy.mean_reward for policy in policies], 0))
 	write_op = tf.summary.merge_all()
 
@@ -84,6 +95,7 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 										combine_gradent 	= combine_gradent,
 										share_exp_weight 	= 0.5,
 										sort_init			= sort_init,
+										use_laser			= use_laser,
 										timer 				= TIMER
 									)
 
@@ -93,10 +105,13 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 
 if __name__ == '__main__':
 
-	for i in range(5):
-		training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'local', num_episode = 20)
-		training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'global', num_episode = 20)
-		training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', num_episode = 20)
+	# for i in range(5):
+	# 	training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'local', num_episode = 20)
+	# 	training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'global', num_episode = 20)
+	# 	training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', num_episode = 20)
+
+	for i in range(10):
+		training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', num_episode = 20, use_laser = False)
 
 		# training(test_time = i, map_index = 4, num_task = 2, share_exp = True, combine_gradent = True, num_episode = 20)
 		# training(test_time = i, map_index = 4, num_task = 2, share_exp = True, combine_gradent = False, num_episode = 20)

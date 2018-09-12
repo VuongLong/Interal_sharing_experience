@@ -33,6 +33,7 @@ class MultitaskPolicy(object):
 			combine_gradent,
 			share_exp_weight,
 			sort_init,
+			use_laser,
 			timer
 			):
 
@@ -54,7 +55,7 @@ class MultitaskPolicy(object):
 		self.share_exp = share_exp
 		self.share_exp_weight = share_exp_weight
 
-		self.env = Terrain(self.map_index)
+		self.env = Terrain(self.map_index, use_laser)
 
 		assert self.num_task <= self.env.num_task
 
@@ -180,7 +181,7 @@ class MultitaskPolicy(object):
 		epoch = 0
 		num_sample = 0
 		while num_sample < self.num_iters:
-			print('[TRAINING {}] epoch {}'.format(self.save_name, epoch), end = '\r', flush = True)
+			print('[TRAINING {}] state_size {}, action_size {}, epoch {}'.format(self.save_name, self.env.cv_state_onehot.shape[1], self.action_size, epoch), end = '\r', flush = True)
 			
 			# ROLLOUT SAMPLE
 			#---------------------------------------------------------------------------------------------------------------------#	

@@ -133,7 +133,7 @@ class PGNetwork_wider:
         return tf.Variable(initial, name=name)
 
 
-    def __init__(self, state_size, action_size, learning_rate, name='PGNetwork_deeper'):
+    def __init__(self, state_size, action_size, learning_rate, name='PGNetwork_wider'):
         self.state_size = state_size
         self.action_size = action_size
         self.learning_rate = learning_rate
@@ -154,8 +154,8 @@ class PGNetwork_wider:
 
             self.fc1_w = tf.concat(values=[self.fc1, self.inputs], axis=1)
 
-            self.W_fc2 = self._fc_weight_variable([256, self.action_size])
-            self.b_fc2 = self._fc_bias_variable([self.action_size], 256)
+            self.W_fc2 = self._fc_weight_variable([256 + self.state_size, self.action_size])
+            self.b_fc2 = self._fc_bias_variable([self.action_size], 256 + self.state_size)
 
             self.logits = tf.matmul(self.fc1_w, self.W_fc2) + self.b_fc2
             
