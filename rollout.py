@@ -16,11 +16,25 @@ class Rollout(object):
 		self,
 		number_episode,
 		num_task,
-		map_index):
+		map_index,
+		sort_init):
 		
 		self.number_episode = number_episode
 		self.map_index = map_index
 		self.env = Terrain(map_index)
+		self.init_maps = SXSY[self.map_index]
+
+		if sort_init == 'local':
+			s = [l for ep in SXSY[self.map_index] for l in sorted(ep, key=lambda element: (element[1], element[0]))]
+			s = np.array(s).astype(int)
+			self.init_maps = s.reshape(1000, 20, 2)
+
+		elif sort_init == 'global':
+			s = [l for ep in SXSY[self.map_index] for l in ep]
+			s = sorted(s, key=lambda element: (element[1], element[0]))
+			s = np.array(s).astype(int)
+			self.init_maps = s.reshape(1000, 20, 2)
+
 		self.num_task = num_task
 		self.states, self.tasks, self.actions, self.rewards = [self.holder_factory(self.num_task) for i in range(4)]
 
@@ -35,7 +49,7 @@ class Rollout(object):
 									map_index = self.map_index)
 
 		ep_states, ep_tasks, ep_actions, ep_rewards = thread_rollout.rollout()
-		print(ep_rewards)
+		
 		self.states[task].append(ep_states)
 		self.tasks[task].append(ep_tasks)
 		self.actions[task].append(ep_actions)
@@ -47,6 +61,7 @@ class Rollout(object):
 	def rollout_batch(self, sess, network, policy, epoch):
 		self.states, self.tasks, self.actions, self.rewards = [self.holder_factory(self.num_task) for i in range(4)]
 		train_threads = []
+		
 		for i in range(self.number_episode):
 			[sx, sy] = SXSY[self.map_index][epoch % 1000][i]
 			for task in range(self.num_task):

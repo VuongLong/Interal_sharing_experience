@@ -15,10 +15,17 @@ except ModuleNotFoundError:
 
 class Terrain:
     def __init__(self, map_index):
-        self.reward_locs = ENV_MAP[map_index]['goal']
         self.MAP = ENV_MAP[map_index]['map']
-        self.bounds_x = ENV_MAP[map_index]['size_x']
-        self.bounds_y = ENV_MAP[map_index]['size_y']
+        self.map_array = np.array(self.MAP, dtype = int)
+        self.reward_locs = [list(z) for z in  zip(np.where(self.map_array == 3)[1].tolist(), np.where(self.map_array == 3)[0].tolist())]
+        
+        self.state_space = [list(z) for z in  zip(np.where(self.map_array != 0)[1].tolist(), np.where(self.map_array != 0)[0].tolist())]
+        self.state_to_index = np.zeros_like(self.MAP) - 1
+        
+        for i, s in enumerate(self.state_space):
+            self.state_to_index[s[1]][s[0]] = i
+        
+        assert np.sum(self.state_to_index != -1) == len(self.state_space), print(np.sum(self.state_to_index != -1))
 
         self.action_size = 8
         self.reward_range = 1.0
@@ -26,12 +33,10 @@ class Terrain:
         
         self.num_task = len(self.reward_locs)
 
-        self.cv_state_onehot = np.identity(self.bounds_x[1]*self.bounds_y[1],dtype=int)
+        self.cv_state_onehot = np.identity(len(self.state_space) ,dtype=int)
         self.cv_action_onehot = np.identity(self.action_size,dtype=int)
         self.cv_task_onehot = np.identity(len(self.reward_locs),dtype=int)
         
-
-
     def getreward(self):
         done = False
         reward = -0.01
@@ -58,30 +63,58 @@ class Terrain:
     def plotgame(self):
 
         plt.clf()
-        for x_pos, y_pos in self.reward_locs:
-            plt.scatter([x_pos,], [y_pos,], marker='^', color="red")
+        plt.xlim([-1, self.map_array.shape[1] + 1])
+        plt.ylim([-1, self.map_array.shape[0] + 1])
 
-        plt.xlim([self.bounds_x[0]-1,self.bounds_x[1]+1])
-        plt.ylim([self.bounds_y[0]-1,self.bounds_y[1]+1])
+        for y in range(self.map_array.shape[0]):
+            for x in range(self.map_array.shape[1]):
+                if self.MAP[y][x] == 0:
+                    plt.scatter(x, y, marker='x', color="red")
 
-        for y in range(self.bounds_y[0]-1,self.bounds_y[1]+2):
-            for x in range(self.bounds_x[0]-1,self.bounds_x[1]+2):
-                if self.MAP[y][x]==0:
-                    plt.scatter([x,], [y,], marker='o', color="green")
+        # for (x, y) in self.state_space:
+            # plt.annotate(self.state_to_index[y][x], (x, y))
+            # plt.scatter(x, y, marker='o', color="green")
 
-        count = np.load('count.npy')
-        for i in range(count.shape[0]):
-            for j in range(count.shape[1]):
-                if count[i][j] > 0:
-                    plt.scatter(i, j, marker='x', color="red")
-                    plt.annotate(count[i][j], (i, j))
 
-        # for (x, y) in SXSY[4][1]:
-        #     plt.scatter(x, y, marker='x', color="red")
+        # for x_pos, y_pos in self.reward_locs:
+        #     plt.scatter(x_pos, y_pos, marker='o', color="blue")
 
-        # plt.scatter([self.player.x,], [self.player.y,], marker='x', color="red")
-        # plt.pause(0.001)
-        plt.show()
+        # count = np.load('count.npy')
+        # for i in range(count.shape[0]):
+        #     for j in range(count.shape[1]):
+        #         if count[i][j] > 0:                    
+        #             plt.annotate(int(count[i][j]), (i, j))
+
+        vmin = 0
+        vmax = 400
+        pts = SXSY[4]
+        s = [l for ep in pts for l in ep]
+        # s = [l for ep in pts for l in sorted(ep, key=lambda element: (element[1], element[0]))]
+
+        # s = sorted(s, key=lambda element: (element[1], element[0]))
+        
+        init_count = np.zeros_like(self.state_to_index, dtype = np.float32)
+        for i, (x, y) in enumerate(s):
+            init_count[y][x] += 10 * 0.99 ** np.sqrt(i)
+
+        # print(init_count)
+        max_cnt, min_cnt = np.max(init_count), np.min(init_count)
+        sx, sy, cxy = [], [], []
+        for i in range(init_count.shape[0]):
+            for j in range(init_count.shape[1]):
+                if init_count[i][j] > 0:
+                    sx.append(j)
+                    sy.append(i)
+                    cxy.append((init_count[i][j] - min_cnt) * (vmax - vmin) / (max_cnt - min_cnt) + vmin)
+
+        cm = plt.cm.get_cmap('jet')
+        sc = plt.scatter(sx, sy, c = cxy, vmin = vmin, vmax = vmax, s = 35, cmap = cm)
+        plt.colorbar(sc)
+
+        # # plt.scatter([self.player.x,], [self.player.y,], marker='x', color="red")
+        # # plt.pause(0.001)
+        # plt.show()
+        plt.savefig('s2')
 
     def resetgame(self, task, sx, sy):
         #self.player = Player(7, 1, self)

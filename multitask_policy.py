@@ -23,7 +23,7 @@ class MultitaskPolicy(object):
 			write_op,
 			action_size,
 			num_task,
-			num_epochs,			
+			num_iters,			
 			gamma,
 			plot_model,
 			save_model,
@@ -32,6 +32,7 @@ class MultitaskPolicy(object):
 			share_exp,
 			combine_gradent,
 			share_exp_weight,
+			sort_init,
 			timer
 			):
 
@@ -42,7 +43,7 @@ class MultitaskPolicy(object):
 		self.write_op = write_op
 		self.action_size = action_size
 		self.num_task = num_task
-		self.num_epochs = num_epochs
+		self.num_iters = num_iters
 		self.gamma = gamma
 		self.save_name = save_name
 		self.plot_model = plot_model
@@ -59,7 +60,7 @@ class MultitaskPolicy(object):
 
 		self.plot_figure = PlotFigure(self.save_name, self.env, self.num_task, os.path.join('plot', timer))
 
-		self.rollout = Rollout(number_episode = self.num_episode, num_task = self.num_task, map_index = self.map_index)
+		self.rollout = Rollout(number_episode = self.num_episode, num_task = self.num_task, map_index = self.map_index, sort_init = sort_init)
 
 
 	def _discount_rewards(self, episode_rewards):
@@ -76,22 +77,17 @@ class MultitaskPolicy(object):
 	def _prepare_current_policy(self, sess, epoch):
 		current_policy = {}
 		current_Z = {}
-
-		# env.bounds_x = [1, 17]
-		# env.bounds_y = [1, 5]
-		# env.cv_state_onehot : (17x5, 17x5)
-
+		
 		for task in range(self.num_task):
-			for x in range(1, self.env.bounds_x[1]+1):
-				for y in range(1, self.env.bounds_y[1]+1):
-					if self.env.MAP[y][x]!=0:
-						p = sess.run(
-									self.PGNetwork[task].pi, 
-									feed_dict={
-										self.PGNetwork[task].inputs: [self.env.cv_state_onehot[x+(y-1)*self.env.bounds_x[1]-1]],
-									})
-					
-						current_policy[x,y,task] = p.ravel().tolist()
+			for (x, y) in self.env.state_space:
+				state_index = self.env.state_to_index[y][x]
+				p = sess.run(
+							self.PGNetwork[task].pi, 
+							feed_dict={
+								self.PGNetwork[task].inputs: [self.env.cv_state_onehot[state_index]],
+							})
+			
+				current_policy[x,y,task] = p.ravel().tolist()
 						
 		
 		if (epoch+1) % self.plot_model == 0 or epoch == 0:
@@ -125,7 +121,7 @@ class MultitaskPolicy(object):
 		
 		# get samples from dictionaries and build trainning batch			
 		for v in samples.keys():
-			state_index = v[0]-1+(v[1]-1)*self.env.bounds_x[1]
+			state_index = self.env.state_to_index[v[1]][v[0]]
 
 			# normalize discounted rewards
 			if abs(np.std(samples[v]))>1e-3:
@@ -183,8 +179,8 @@ class MultitaskPolicy(object):
 		# run with saved initial model
 		epoch = 0
 		num_sample = 0
-		while epoch < self.num_epochs:
-			print('[TRAINING {}] epoch {}/{}'.format(self.save_name, epoch, self.num_epochs - 1), end = '\r', flush = True)
+		while num_sample < self.num_iters:
+			print('[TRAINING {}] epoch {}'.format(self.save_name, epoch), end = '\r', flush = True)
 			
 			# ROLLOUT SAMPLE
 			#---------------------------------------------------------------------------------------------------------------------#	
@@ -258,7 +254,6 @@ class MultitaskPolicy(object):
 			# WRITE TF SUMMARIES
 			#---------------------------------------------------------------------------------------------------------------------#	
 			sum_dict = {}
-			num_sample = 0
 			for i in range(self.num_task):
 				sum_dict[self.PGNetwork[i].mean_reward] = np.mean(rewards_mb[i])
 				num_sample += rewards_mb[i].shape[0]

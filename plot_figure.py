@@ -13,8 +13,7 @@ class PlotFigure(object):
 	
 	def __init__(self, save_name, env, num_task, save_folder):
 		self.env = env
-		self.range_x = [0, self.env.bounds_x[1]+1]
-		self.range_y = [0, self.env.bounds_y[1]+1]
+		self.state_space = env.state_space
 		self.num_task = num_task
 		self.save_name = save_name
 		self.save_folder = save_folder
@@ -42,11 +41,13 @@ class PlotFigure(object):
 			ax = plt.subplot(1, self.num_task, index+1)
 
 			plt.title(str(epoch))
-			for x in range(self.range_x[0]+1,self.range_x[1]):
-				for y in range(self.range_y[0]+1,self.range_y[1]):
-					if self.env.MAP[y][x]!=0:
+			for y in range(self.env.map_array.shape[0]):
+				for x in range(self.env.map_array.shape[1]):
+					if self.env.MAP[y][x] != 0:
 						self._plot_star(ax, (x, y), policy[x,y,index])
-					plt.plot([x,], [y,], marker='o', markersize=2, color="green")
+						plt.plot([x,], [y,], marker='o', markersize=2, color="green")
+					else:
+						plt.scatter(x, y, marker='x', color="red")
 		
 		if not os.path.isdir(os.path.join(self.save_folder, self.save_name)):
 			os.mkdir(os.path.join(self.save_folder, self.save_name))
