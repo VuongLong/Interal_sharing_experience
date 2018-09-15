@@ -21,7 +21,6 @@ class Rollout(object):
 		
 		self.number_episode = number_episode
 		self.map_index = map_index
-		self.env = Terrain(map_index)
 		self.init_maps = SXSY[self.map_index]
 
 		if sort_init == 'local':
@@ -63,7 +62,7 @@ class Rollout(object):
 		train_threads = []
 		
 		for i in range(self.number_episode):
-			[sx, sy] = SXSY[self.map_index][epoch % 1000][i]
+			[sx, sy] = self.init_maps[epoch % 1000][i]
 			for task in range(self.num_task):
 				train_threads.append(threading.Thread(target=self._rollout_process, args=(sess, network, task, sx, sy, policy,)))
 

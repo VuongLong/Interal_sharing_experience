@@ -44,6 +44,7 @@ class Terrain:
                 self.cv_state_onehot[state_index] = np.array(self.laser(s[0], s[1]))
 
             self.cv_state_onehot = np.asarray(self.cv_state_onehot)
+            self.cv_state_onehot = self.cv_state_onehot
 
         self.cv_action_onehot = np.identity(self.action_size, dtype=int)
         self.cv_task_onehot = np.identity(len(self.reward_locs), dtype=int)

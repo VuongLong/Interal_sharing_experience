@@ -6,24 +6,20 @@ from env.map import ENV_MAP
 from env.sxsy import SXSY
 from random import randint
 
-MAP = ENV_MAP[5]['map']
-bounds_x = ENV_MAP[5]['size_x']
-bounds_y = ENV_MAP[5]['size_y']
+map_array = np.array(ENV_MAP[5]['map']).astype(int)
+
+state_space = [list(z) for z in  zip(np.where(map_array != 0)[1].tolist(), np.where(map_array != 0)[0].tolist())]
+
 SMAP = []
 SXSY = {}
 for i in range(1000):
-	start = []
-	for i in range(20):
-		sx = 0
-		sy = 0
-		while MAP[sy][sx]==0:    
-			sx = randint(1,bounds_x[1]) 
-			sy = randint(1,bounds_y[1]) 
-		start.append([sx,sy])
-	SMAP.append(start)	
+	ep_inits = []
+	for e in range(20):
+		rands = state_space[np.random.choice(range(len(state_space)))]
+		ep_inits.append((rands[0], rands[1]))
+	SMAP.append(ep_inits)
 
 SXSY[5] = SMAP	
 file = open('./env/sxsy.py','a')	
-file.write('SXSY = ')
 file.write(json.dumps(SXSY))
 

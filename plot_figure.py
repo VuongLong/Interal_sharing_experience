@@ -34,23 +34,39 @@ class PlotFigure(object):
 		for i, angle in enumerate(angles):
 			self._plot_point(ax, orig, angle, lengths[i]*1.0 / max_len * max_length)
 
-	def plot(self, policy, epoch):
+	def plot(self, policy, epoch, gradients, batch_eps):
 		plt.figure()
 		
 		for index in range(self.num_task):
-			ax = plt.subplot(1, self.num_task, index+1)
-
-			plt.title(str(epoch))
+			ax = plt.subplot(1, self.num_task, index + 1)
+			plt.title(str(epoch) + "_" + str(np.mean([np.abs(g) for g in gradients[index]])))
 			for y in range(self.env.map_array.shape[0]):
 				for x in range(self.env.map_array.shape[1]):
 					if self.env.MAP[y][x] != 0:
 						self._plot_star(ax, (x, y), policy[x,y,index])
-						plt.plot([x,], [y,], marker='o', markersize=2, color="green")
+						plt.plot([x,], [y,], marker='o', markersize=1, color="green")
 					else:
 						plt.scatter(x, y, marker='x', color="red")
-		
+
 		if not os.path.isdir(os.path.join(self.save_folder, self.save_name)):
 			os.mkdir(os.path.join(self.save_folder, self.save_name))
 
 		plt.savefig(os.path.join(self.save_folder, self.save_name, str(epoch) + '.png'), bbox_inches='tight')
-		#plt.pause(0.00001)
+		
+		plt.figure()
+		for index in range(self.num_task):
+			ax = plt.subplot(1, self.num_task, index + 1)
+			plt.title(str(epoch) + "_" + str(np.mean([np.abs(g) for g in gradients[index]])))
+			task_states = batch_eps[index]
+			for y in range(self.env.map_array.shape[0]):
+				for x in range(self.env.map_array.shape[1]):
+					if self.env.MAP[y][x] != 0:
+						plt.plot([x,], [y,], marker='o', markersize=1, color="green")
+					else:
+						plt.scatter(x, y, marker='x', color="red")
+
+			for ep_states in task_states:
+				plt.scatter(ep_states[0][0], ep_states[0][1], marker = '^', s = 30)
+				plt.plot([s[0] for s in ep_states], [s[1] for s in ep_states])
+
+		plt.savefig(os.path.join(self.save_folder, self.save_name, str(epoch) + '_trajectories.png'), bbox_inches='tight')

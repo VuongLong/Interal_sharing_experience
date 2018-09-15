@@ -50,6 +50,9 @@ class MultitaskPolicy(object):
 		self.plot_model = plot_model
 		self.save_model = save_model
 
+		self.gradients = [[] for i in range(self.num_task)]
+		self.batch_eps = [[] for i in range(self.num_task)]
+
 		self.num_episode =  num_episode
 		self.combine_gradent = combine_gradent
 		self.share_exp = share_exp
@@ -92,7 +95,9 @@ class MultitaskPolicy(object):
 						
 		
 		if (epoch+1) % self.plot_model == 0 or epoch == 0:
-			self.plot_figure.plot(current_policy, epoch + 1)
+			self.plot_figure.plot(current_policy, epoch + 1, self.gradients, self.batch_eps)
+			self.gradients = [[] for i in range(self.num_task)]
+			self.batch_eps = [[] for i in range(self.num_task)]
 						
 		return current_policy
 
@@ -158,6 +163,8 @@ class MultitaskPolicy(object):
 		#		   ]
 
 		states, tasks, actions, rewards = self.rollout.rollout_batch(sess, self.PGNetwork, current_policy, epoch)     
+		for task, task_states in enumerate(states):
+			self.batch_eps[task] = task_states
 
 		discounted_rewards = [[] for i in range(self.num_task)]
 		for index, task_rewards in enumerate(rewards):
@@ -221,6 +228,9 @@ class MultitaskPolicy(object):
 						    feed_dict[self.PGNetwork[task_index].placeholder_gradients[i][0]] = grad[0]
 						_ = sess.run([self.PGNetwork[task_index].train_opt], feed_dict=feed_dict)
 
+						for grad in gradients[0]:
+							self.gradients[task_index].append(np.sum(grad[0]))
+
 				# combine sample
 				else: 
 					for task_index in range(self.num_task):
@@ -234,7 +244,9 @@ class MultitaskPolicy(object):
 						for i, grad in enumerate(gradients[0]):
 						    feed_dict[self.PGNetwork[task_index].placeholder_gradients[i][0]] = grad[0]
 						_ = sess.run([self.PGNetwork[task_index].train_opt],feed_dict=feed_dict)
-			
+						
+						for grad in gradients[0]:
+							self.gradients[task_index].append(np.sum(grad[0]))
 			else:
 				for task_index in range(self.num_task):
 					gradients = sess.run([self.PGNetwork[task_index].gvs], feed_dict={
@@ -248,9 +260,11 @@ class MultitaskPolicy(object):
 					    feed_dict[self.PGNetwork[task_index].placeholder_gradients[i][0]] = grad[0]
 					_ = sess.run([self.PGNetwork[task_index].train_opt],feed_dict=feed_dict)
 
+					for grad in gradients[0]:
+							self.gradients[task_index].append(np.sum(grad[0]))
+
 			#---------------------------------------------------------------------------------------------------------------------#	
 			
-
 
 			# WRITE TF SUMMARIES
 			#---------------------------------------------------------------------------------------------------------------------#	
