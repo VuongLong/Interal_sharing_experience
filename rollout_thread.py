@@ -38,7 +38,7 @@ class RolloutThread(object):
 
 		while True:
 			step+=1
-			if step > 20000:
+			if step > 5000:
 				print('re-rollout')
 				sys.stdout.flush()
 				break

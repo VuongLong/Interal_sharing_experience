@@ -24,9 +24,6 @@ class MultitaskPolicy(object):
 			oracle,
 			writer,
 			write_op,
-			state_size,
-			action_size,
-			task_size,
 			num_epochs,			
 			gamma,
 			plot_model,
@@ -45,9 +42,6 @@ class MultitaskPolicy(object):
 
 		self.writer = writer
 		self.write_op = write_op
-		self.state_size = state_size 
-		self.action_size = action_size
-		self.task_size = task_size
 		self.num_epochs = num_epochs
 		self.gamma = gamma
 		self.save_name = save_name
@@ -88,10 +82,9 @@ class MultitaskPolicy(object):
 				for y in range(range_y[0]+1,range_y[1]):
 					if self.env.MAP[y][x]!=0:
 						p = sess.run(
-									self.PGNetwork.pi, 
+									self.PGNetwork[task].pi, 
 									feed_dict={
-										self.PGNetwork.inputs: [self.env.cv_state_onehot[x+(y-1)*self.env.bounds_x[1]-1]],
-										self.PGNetwork.inputt: [self.env.cv_task_onehot[task]]})
+										self.PGNetwork[task].inputs: [self.env.cv_state_onehot[x+(y-1)*self.env.bounds_x[1]-1]]})
 					
 						current_policy[x,y,task] = p.ravel().tolist()
 						
@@ -103,61 +96,52 @@ class MultitaskPolicy(object):
 
 	
 
-	def _process_experience_normailize(self, sess, states, tasks, actions, drewards, current_policy):
+	def _process_experience_normailize(self, sess, states, actions, drewards, current_policy):
 
-		batch_ss, batch_ts, batch_as, batch_drs = [], [], [], []   
-		share_ss, share_ts, share_as, share_drs = [], [], [], []   
-		sample = {}
-		action_sample = {}
+		batch_ss, batch_as, batch_drs = [[],[]], [[],[]], [[],[]]
+		share_ss, share_as, share_drs = [[],[]], [[],[]], [[],[]]
+		state_dict = {}
+		action_dict = {}
 
-		# break trajecties to samples and put to dictionarie:
-		# sample[state,task]=discounted_reward
-		# sample_action = action
-
-		for i in range(len(states)):
-			for index, state in enumerate(states[i]):
+		for task in range(len(states)):
+			for index, state in enumerate(states[task]):
 				
-				if sample.get((states[i][index][0], states[i][index][1], tasks[i][index]),-10000)==-10000:
-					sample[states[i][index][0], states[i][index][1], tasks[i][index]]=[]
-					action_sample[states[i][index][0], states[i][index][1], tasks[i][index]]=[]
+				if state_dict.get((state[0], state[1], task),-1)==-1:
+					state_dict[state[0], state[1], task]=[]
+					action_dict[state[0], state[1], task]=[]
 				
-				sample[states[i][index][0], states[i][index][1], tasks[i][index]].append(drewards[i][index])
-				action_sample[states[i][index][0], states[i][index][1], tasks[i][index]].append(actions[i][index])
+				state_dict[state[0], state[1], task].append(drewards[task][index])
+				action_dict[state[0], state[1], task].append(actions[task][index])
 		
-		# get sample from dictionaries and build trainning batch			
-		for v in sample.keys():
+		for v in state_dict.keys():
 			state_index = v[0]+(v[1]-1)*self.env.bounds_x[1]-1
-
 			#normalize discounted rewards
-			if abs(np.std(sample[v]))>1e-3:
-				sample[v] = (np.array(sample[v])-np.mean(sample[v]))/np.std(sample[v])
+			#if abs(np.std(state_dict[v]))>1e-3:
+			#	state_dict[v] = (np.array(state_dict[v])-np.mean(state_dict[v]))/np.std(state_dict[v])
 			
-			for i, reward in enumerate(sample[v]):
-
-				# original samples
-				batch_ss.append(self.env.cv_state_onehot[state_index])
-
-				batch_ts.append(self.env.cv_task_onehot[v[2]])
-				batch_as.append(self.env.cv_action_onehot[action_sample[v][i]])
-				batch_drs.append(reward)
-
-				# interpolate sharing sample
+			for i, (action, reward) in enumerate(zip(action_dict[v], state_dict[v])):
 				if self.share_exp:
-					#only interpolate sample in sharing areas 
+					fx = (current_policy[v[0],v[1],1-v[2]][action]+current_policy[v[0],v[1],v[2]][action])/2
+
+					batch_ss[v[2]].append(self.env.cv_state_onehot[state_index])
+					batch_as[v[2]].append(self.env.cv_action_onehot[action])
 					if self.env.MAP[v[1]][v[0]]==2:
-						share_ss.append(self.env.cv_state_onehot[state_index])
-						share_ts.append(self.env.cv_task_onehot[1-v[2]]) #task_1 => task_0 and task_0 => task_1
-						share_as.append(self.env.cv_action_onehot[action_sample[v][i]])
-						important_weight = current_policy[v[0],v[1],1-v[2]][action_sample[v][i]]/current_policy[v[0],v[1],v[2]][action_sample[v][i]]
-						share_drs.append(important_weight*reward)
-					# keep sample in non-sharing areas to avoid bias (not sure now, need read and experiment to make final decision)
+						important_weight = current_policy[v[0],v[1],v[2]][action]/fx
 					else:
-						share_ss.append(self.env.cv_state_onehot[state_index])
-						share_ts.append(self.env.cv_task_onehot[v[2]])
-						share_as.append(self.env.cv_action_onehot[action_sample[v][i]])
-						share_drs.append(reward)
+						important_weight = 1.0	
+					batch_drs[v[2]].append(important_weight*reward)
+					
+					if self.env.MAP[v[1]][v[0]]==2:
+						share_ss[1-v[2]].append(self.env.cv_state_onehot[state_index])
+						share_as[1-v[2]].append(self.env.cv_action_onehot[action])
+						important_weight = current_policy[v[0],v[1],1-v[2]][action]/fx
+						share_drs[1-v[2]].append(important_weight*reward)
+				else:
+					batch_ss[v[2]].append(self.env.cv_state_onehot[state_index])
+					batch_as[v[2]].append(self.env.cv_action_onehot[action])
+					batch_drs[v[2]].append(reward)
 				
-		return batch_ss, batch_ts, batch_as, batch_drs, share_ss, share_ts, share_as, share_drs, sample
+		return batch_ss, batch_as, batch_drs, share_ss, share_as, share_drs
 	
 
 
@@ -172,8 +156,10 @@ class MultitaskPolicy(object):
 
 		discounted_rewards = [[],[]]
 		for index, task_rewards in enumerate(rewards):
-			for ep_reward in task_rewards:
+			for i, ep_reward in enumerate(task_rewards):
 				discounted_rewards[index]+=self._discount_rewards(ep_reward)
+				#if ep_reward[-1] == 1:
+				#	print  states[index][i][-1], tasks[index][i][-1]
 
 		states[0] = np.concatenate(states[0])       
 		states[1] = np.concatenate(states[1])
@@ -185,9 +171,9 @@ class MultitaskPolicy(object):
 		rewards[1] = np.concatenate(rewards[1])
 		
 	
-		batch_ss, batch_ts, batch_as, batch_drs, share_ss, share_ts, share_as, share_drs , samples= self._process_experience_normailize(sess, states, tasks, actions, discounted_rewards, current_policy) 
+		batch_ss, batch_as, batch_drs, share_ss, share_as, share_drs= self._process_experience_normailize(sess, states, actions, discounted_rewards, current_policy) 
 
-		return share_ss, share_ts, share_as, share_drs, batch_ss, batch_ts, batch_as, batch_drs, np.concatenate(rewards)
+		return share_ss, share_as, share_drs, batch_ss, batch_as, batch_drs, np.concatenate(rewards)
 		
 		
 	def train(self, sess, saver):
@@ -198,47 +184,82 @@ class MultitaskPolicy(object):
 			print epoch
 			
 			#---------------------------------------------------------------------------------------------------------------------#	
-			#ROLOUT SAMPLE
-			share_ss, share_ts, share_as, share_drs, states_mb, tasks_mb, actions_mb, discounted_rewards_mb, rewards_mb  = self._make_batch(sess, epoch)
+			#ROLOUT state_dict
+			share_ss, share_as, share_drs, states_mb, actions_mb, discounted_rewards_mb, rewards_mb  = self._make_batch(sess, epoch)
 			#---------------------------------------------------------------------------------------------------------------------#	
-			
-
+		
 			#---------------------------------------------------------------------------------------------------------------------#	
 			#UPDATE NETWORK
 			
-			#base_line
-			gradients = sess.run([self.PGNetwork.gvs], feed_dict={
-																self.PGNetwork.inputs: states_mb,
-																self.PGNetwork.inputt: tasks_mb,
-																self.PGNetwork.actions: actions_mb,
-																self.PGNetwork.rewards: discounted_rewards_mb 
-																})
+			test_num_task = 2
 			if self.share_exp:
 				if self.combine_gradent: #combine gradient
-					gradients_share = sess.run([self.PGNetwork.gvs], feed_dict={
-															self.PGNetwork.inputs: share_ss,
-															self.PGNetwork.inputt: share_ts,
-															self.PGNetwork.actions: share_as,
-															self.PGNetwork.rewards: share_drs 
-															})	
-					#final_grad = weight*grad+(1-weight)*grad_share 
+					#base_line
+					for task_index in range(test_num_task):
+						gradients = sess.run([self.PGNetwork[task_index].gvs], feed_dict={
+																		self.PGNetwork[task_index].inputs: states_mb[task_index],
+																		self.PGNetwork[task_index].actions: actions_mb[task_index],
+																		self.PGNetwork[task_index].rewards: discounted_rewards_mb[task_index]
+																		})
+						if len(share_ss[task_index])>0:
+							gradients_share = sess.run([self.PGNetwork[task_index].gvs], feed_dict={
+																	self.PGNetwork[task_index].inputs: share_ss[task_index],
+																	self.PGNetwork[task_index].actions: share_as[task_index],
+																	self.PGNetwork[task_index].rewards: share_drs[task_index] 
+																	})	
+							#final_grad = weight*grad+(1-weight===)*grad_share 
+							for i, grad in enumerate(gradients[0]):
+								for g,v  in enumerate(grad[0]):
+									#gradients[0][i]=(self.share_exp_weight*gradients[0][i][0]+(1-self.share_exp_weight)*gradients_share[0][i][0],gradients[0][i][1])
+									gradients[0][i]=(gradients[0][i][0]+gradients_share[0][i][0],gradients[0][i][1])
+							
+						#update network weight from computed gradient	
+						feed_dict = {}
+						for i, grad in enumerate(gradients[0]):
+						    feed_dict[self.PGNetwork[task_index].placeholder_gradients[i][0]] = grad[0]
+						_ = sess.run([self.PGNetwork[task_index].train_opt],feed_dict=feed_dict)
+				else: #combine state_dict
+					for task_index in range(test_num_task):
+						gradients = sess.run([self.PGNetwork[task_index].gvs], feed_dict={
+																	self.PGNetwork[task_index].inputs: share_ss[task_index]+states_mb[task_index],
+																	self.PGNetwork[task_index].actions: share_as[task_index]+actions_mb[task_index],
+																	self.PGNetwork[task_index].rewards: share_drs[task_index]+discounted_rewards_mb[task_index] 
+																	})	
+						#update network weight from computed gradient	
+						feed_dict = {}
+						for i, grad in enumerate(gradients[0]):
+						    feed_dict[self.PGNetwork[task_index].placeholder_gradients[i][0]] = grad[0]
+						_ = sess.run([self.PGNetwork[task_index].train_opt],feed_dict=feed_dict)
+						'''
+						
+						sess.run([self.PGNetwork[task_index].inter_train_opt], feed_dict={
+																	self.PGNetwork[task_index].inputs: share_ss[task_index]+states_mb[task_index],
+																	self.PGNetwork[task_index].actions: share_as[task_index]+actions_mb[task_index],
+																	self.PGNetwork[task_index].rewards: share_drs[task_index]+discounted_rewards_mb[task_index] 
+																	})	
+						'''
+
+			else:
+				for task_index in range(test_num_task):
+					#base_line
+					gradients = sess.run([self.PGNetwork[task_index].gvs], feed_dict={
+																		self.PGNetwork[task_index].inputs: states_mb[task_index],
+																		self.PGNetwork[task_index].actions: actions_mb[task_index],
+																		self.PGNetwork[task_index].rewards: discounted_rewards_mb[task_index] 
+																		})
+					#update network weight from computed gradient	
+					feed_dict = {}
 					for i, grad in enumerate(gradients[0]):
-						for g,v  in enumerate(grad[0]):
-							gradients[0][i][0][g]=self.share_exp_weight*gradients[0][i][0][g]+(1-self.share_exp_weight)*gradients_share[0][i][0][g]
-				else: #combine sample
-					gradients = sess.run([self.PGNetwork.gvs], feed_dict={
-																self.PGNetwork.inputs: share_ss+states_mb,
-																self.PGNetwork.inputt: share_ts+tasks_mb,
-																self.PGNetwork.actions: share_as+actions_mb,
-																self.PGNetwork.rewards: share_drs+discounted_rewards_mb 
-																})	
-				
-			
-			#update network weight from computed gradient	
-			feed_dict = {}
-			for i, grad in enumerate(gradients[0]):
-			    feed_dict[self.PGNetwork.placeholder_gradients[i][0]] = grad[0]
-			_ = sess.run([self.PGNetwork.train_opt],feed_dict=feed_dict)
+					    feed_dict[self.PGNetwork[task_index].placeholder_gradients[i][0]] = grad[0]
+					_ = sess.run([self.PGNetwork[task_index].train_opt],feed_dict=feed_dict)
+					'''
+					sess.run([self.PGNetwork[task_index].inter_train_opt], feed_dict={
+																		self.PGNetwork[task_index].inputs: states_mb[task_index],
+																		self.PGNetwork[task_index].actions: actions_mb[task_index],
+																		self.PGNetwork[task_index].rewards: discounted_rewards_mb[task_index]
+																		})
+					'''
+
 			#---------------------------------------------------------------------------------------------------------------------#	
 			
 
@@ -250,11 +271,11 @@ class MultitaskPolicy(object):
 			total_reward_of_that_batch = np.sum(rewards_mb)
 			mean_reward_of_that_batch = np.divide(total_reward_of_that_batch, self.num_episide)
 			summary = sess.run(self.write_op, feed_dict={
-												self.PGNetwork.mean_reward: mean_reward_of_that_batch
+												self.PGNetwork[0].mean_reward: mean_reward_of_that_batch
 												})
 
-			self.writer.add_summary(summary, num_sample)
-			#self.writer.add_summary(summary, epoch)
+			#self.writer.add_summary(summary, num_sample)
+			self.writer.add_summary(summary, epoch)
 			self.writer.flush()
 			#---------------------------------------------------------------------------------------------------------------------#	
 

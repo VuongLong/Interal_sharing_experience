@@ -12,7 +12,6 @@ class PlotFigure(object):
 		self.env = env
 		self.range_x = [0, self.env.bounds_x[1]+1]
 		self.range_y = [0, self.env.bounds_y[1]+1]
-		self.num_task = 2
 		self.save_name = save_name
 
 	def _plot_point(self, ax, point, angle, length):
@@ -31,14 +30,20 @@ class PlotFigure(object):
 	def plot(self, policy, epoch):
 		plt.clf()
 		
-		for index in range(self.num_task):
+		for index in range(self.env.num_task):
 			ax = plt.subplot(1,2,index+1)
 			plt.title(str(epoch))
 			for x in range(self.range_x[0]+1,self.range_x[1]):
 				for y in range(self.range_y[0]+1,self.range_y[1]):
 					if self.env.MAP[y][x]!=0:
-						self._plot_star(ax, (x, y), policy[x,y,index])
-					plt.plot([x,], [y,], marker='o', markersize=2, color="green")
+						if self.env.action_size == 8:
+							self._plot_star(ax, (x, y), policy[x,y,index])
+						else:	
+							self._plot_star(ax, (x, y), [policy[x,y,index][0],0,policy[x,y,index][1],0,policy[x,y,index][2],0,policy[x,y,index][3],0])
+					if self.env.MAP[y][x] ==2:
+						plt.plot([x,], [y,], marker='o', markersize=2, color="red")
+					else:	
+						plt.plot([x,], [y,], marker='o', markersize=2, color="green")
 		
 		if not os.path.exists('../plot/'+self.save_name):
 			os.makedirs('../plot/'+self.save_name)

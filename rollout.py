@@ -46,9 +46,16 @@ class Rollout(object):
 		train_threads = []
 		for i in range(self.number_episode):
 			[sx, sy] = SXSY[self.map_index][epoch-1][i]
+			'''
+			sx = 0
+			sy = 0
+			while self.env.MAP[sy][sx]==0:    
+				sx = randint(1,self.env.bounds_x[1]) 
+				sy = randint(1,self.env.bounds_y[1]) 
+			'''
+			
 			for task in range(self.env.num_task):
 				train_threads.append(threading.Thread(target=self._rollout_process, args=(sess, network, task, sx, sy, policy,)))
-
 		# start each training thread
 		for t in train_threads:
 			t.start()

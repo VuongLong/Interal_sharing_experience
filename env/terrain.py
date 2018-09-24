@@ -3,7 +3,7 @@ import random
 from random import randint
 import numpy as np
 from env.map import ENV_MAP
-
+from constant import ACTION_SIZE
 plt.ion()
 
 from env.controller import Player
@@ -14,8 +14,9 @@ class Terrain:
         self.MAP = ENV_MAP[map_index]['map']
         self.bounds_x = ENV_MAP[map_index]['size_x']
         self.bounds_y = ENV_MAP[map_index]['size_y']
+        self.size_m = ENV_MAP[map_index]['size_m']
 
-        self.action_size = 8
+        self.action_size = ACTION_SIZE
         self.reward_range = 1.0
         self.reward_goal = 1.0
         
@@ -29,7 +30,7 @@ class Terrain:
 
     def getreward(self):
         done = False
-        reward = -0.01
+        reward = -0.02
 
         x_pos, y_pos = self.reward_locs[self.task]
         #reward -= 0.15
