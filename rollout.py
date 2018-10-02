@@ -20,10 +20,23 @@ class Rollout(object):
 		self.map_index = map_index
 		self.env = Terrain(map_index)
 
-		self.states, self.tasks, self.actions, self.rewards = [[],[]], [[],[]], [[],[]], [[],[]]
+		self.states, self.tasks, self.actions, self.rewards, self.next_states = [],[],[],[],[]
+
+		for task in range(self.env.num_task):
+			self.states.append([])
+			self.tasks.append([])
+			self.actions.append([])
+			self.rewards.append([])
+			self.next_states.append([])
+			for i in range(self.number_episode):
+				self.states[task].append([])
+				self.tasks[task].append([])
+				self.actions[task].append([])
+				self.rewards[task].append([])
+				self.next_states[task].append([])
 
 
-	def _rollout_process(self, sess, network, task, sx, sy, current_policy):
+	def _rollout_process(self, sess, index, network, task, sx, sy, current_policy):
 		thread_rollout = RolloutThread(
 									sess = sess,
 									network = network,
@@ -33,19 +46,32 @@ class Rollout(object):
 									policy = current_policy,
 									map_index = self.map_index)
 
-		ep_states, ep_tasks, ep_actions, ep_rewards = thread_rollout.rollout()
+		ep_states, ep_tasks, ep_actions, ep_rewards, ep_next_states = thread_rollout.rollout()
 		
-		self.states[task].append(ep_states)
-		self.tasks[task].append(ep_tasks)
-		self.actions[task].append(ep_actions)
-		self.rewards[task].append(ep_rewards)
+		self.states[task][index]=ep_states
+		self.tasks[task][index]=ep_tasks
+		self.actions[task][index]=ep_actions
+		self.rewards[task][index]=ep_rewards
+		self.next_states[task][index]=ep_next_states
 
 
 	def rollout_batch(self, sess, network, policy, epoch):
-		self.states, self.tasks, self.actions, self.rewards = [[],[]], [[],[]], [[],[]], [[],[]]
+		self.states, self.tasks, self.actions, self.rewards, self.next_states = [],[],[],[],[]
+		for task in range(self.env.num_task):
+			self.states.append([])
+			self.tasks.append([])
+			self.actions.append([])
+			self.rewards.append([])
+			self.next_states.append([])
+			for i in range(self.number_episode):
+				self.states[task].append([])
+				self.tasks[task].append([])
+				self.actions[task].append([])
+				self.rewards[task].append([])
+				self.next_states[task].append([])
+
 		train_threads = []
-		for i in range(self.number_episode):
-			[sx, sy] = SXSY[self.map_index][epoch-1][i]
+		for task in range(self.env.num_task):
 			'''
 			sx = 0
 			sy = 0
@@ -53,9 +79,12 @@ class Rollout(object):
 				sx = randint(1,self.env.bounds_x[1]) 
 				sy = randint(1,self.env.bounds_y[1]) 
 			'''
-			
-			for task in range(self.env.num_task):
-				train_threads.append(threading.Thread(target=self._rollout_process, args=(sess, network, task, sx, sy, policy,)))
+			index = 0
+			for i in range(self.number_episode):
+				[sx, sy] = SXSY[self.map_index][epoch-1][i]
+				train_threads.append(threading.Thread(target=self._rollout_process, args=(sess, index, network, task, sx, sy, policy,)))
+				index+=1	
+
 		# start each training thread
 		for t in train_threads:
 			t.start()
@@ -64,4 +93,4 @@ class Rollout(object):
 		for t in train_threads:
 			t.join()		
 
-		return self.states, self.tasks, self.actions, self.rewards	
+		return self.states, self.tasks, self.actions, self.rewards, self.next_states	

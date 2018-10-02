@@ -29,7 +29,7 @@ class RolloutThread(object):
 		self.onehot_actions = np.identity(self.env.action_size, dtype=int)
 
 	def rollout(self):
-		states, tasks, actions, rewards_of_episode = [], [], [], []
+		states, tasks, actions, rewards, next_states = [], [], [], [], []
 		
 		self.env.resetgame(self.task, self.start_x, self.start_y)
 		state = self.env.player.getposition()
@@ -38,11 +38,11 @@ class RolloutThread(object):
 
 		while True:
 			step+=1
-			if step > 5000:
-				print('re-rollout')
-				sys.stdout.flush()
+			if step > 100:
+				#print('re-rollout')
+				#sys.stdout.flush()
 				break
-				#states, tasks, actions, rewards_of_episode = [], [], [], []
+				#states, tasks, actions, rewards = [], [], [], []
 				#step = 1
 				#self.env.resetgame(self.task, self.start_x, self.start_y)
 				#state = self.env.player.getposition()
@@ -60,10 +60,11 @@ class RolloutThread(object):
 			tasks.append(self.task)
 
 			actions.append(action)
-			rewards_of_episode.append(reward)
+			rewards.append(reward)
+			next_states.append(next_state)
 			state = next_state
 			
 			if done:     
 				break
 
-		return states, tasks, actions, rewards_of_episode	
+		return states, tasks, actions, rewards, next_states	
