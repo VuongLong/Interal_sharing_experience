@@ -4,6 +4,7 @@ import tensorflow as tf      # Deep Learning library
 from network import PGNetwork
 from network import VNetwork
 from network import ZNetwork
+
 from constant import ACTION_SIZE
 from multitask_policy import MultitaskPolicy
 from env.terrain import Terrain
@@ -11,13 +12,13 @@ from env.terrain import Terrain
 NON = 1
 SHARE = 2
 
-def training(test_time, map_index, share_exp, combine_gradent, num_episide):
+def training(test_time, map_index, share_exp, oracle, num_episide):
 	tf.reset_default_graph()
 	
 	learning_rate= 0.005
 
 	if share_exp:
-		if combine_gradent:
+		if oracle:
 			network_name_scope = 'Combine_gradients'
 		else:
 			network_name_scope = 'Share_samples'
@@ -45,10 +46,11 @@ def training(test_time, map_index, share_exp, combine_gradent, num_episide):
 						)
 		value.append(value_i)
 		
-	oracle = ZNetwork(
+	oracle_network = ZNetwork(
 					state_size = env.size_m, 
 					action_size = 2, 
-					learning_rate = learning_rate
+					learning_rate = learning_rate,
+					name = "oracle"
 					)
 
 	sess = tf.Session()
@@ -57,8 +59,8 @@ def training(test_time, map_index, share_exp, combine_gradent, num_episide):
 	saver = tf.train.Saver()
 
 	if share_exp:
-		if combine_gradent: 
-			writer = tf.summary.FileWriter("../plot/log/Combine_gradients"+"_"+str(num_episide))
+		if oracle: 
+			writer = tf.summary.FileWriter("../plot/log/oracle"+"_"+str(num_episide))
 		else:	
 			writer = tf.summary.FileWriter("../plot/log/Share_samples"+"_"+str(num_episide))
 	else:
@@ -72,17 +74,17 @@ def training(test_time, map_index, share_exp, combine_gradent, num_episide):
 									map_index = map_index,
 									policy = policy,
 									value = value,
-									oracle = oracle,
+									oracle_network = oracle_network,
 									writer = writer,
 									write_op = write_op,
 									num_epochs = 2000,
 									gamma = 0.99,
-									plot_model = 1000,
+									plot_model = 50,
 									save_model = 10000,
 									save_name = network_name_scope+'_'+test_name+'_'+str(num_episide),
 									num_episide = num_episide,
 									share_exp = share_exp,
-									combine_gradent = combine_gradent,
+									oracle = oracle,
 									share_exp_weight = 0.5,
 									)
 
@@ -91,7 +93,7 @@ def training(test_time, map_index, share_exp, combine_gradent, num_episide):
 	
 	# Retrain with saving initial model 
 	#saver.save(sess, "./model_init_onehot/model.ckpt")
-	saver.restore(sess, "./model_init_onehot/model.ckpt")
+	#saver.restore(sess, "./model_init_onehot/model.ckpt")
 	
 	multitask_agent.train(sess, saver)
 	sess.close()
@@ -101,5 +103,6 @@ if __name__ == '__main__':
 	map_index = 4
 	for i in range(3):
 		num_ep = 8*(i+1)
-		training(test_time=i, map_index=map_index, share_exp = False, combine_gradent=False, num_episide =num_ep)
-		training(test_time=i, map_index=map_index, share_exp = True, combine_gradent=False, num_episide = num_ep)
+		training(test_time=i, map_index=map_index, share_exp = False, oracle=False, num_episide =num_ep)
+		training(test_time=i, map_index=map_index, share_exp = True, oracle=False, num_episide = num_ep)
+		training(test_time=i, map_index=map_index, share_exp = True, oracle=True, num_episide = num_ep)

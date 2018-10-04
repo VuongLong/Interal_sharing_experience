@@ -1,4 +1,3 @@
-
 import tensorflow as tf
 import numpy as np           # Handle matrices
 import random                # Handling random number generation
@@ -19,13 +18,11 @@ class PGNetwork:
 		initial = tf.random_uniform(shape, minval=-d, maxval=d)
 		return tf.Variable(initial, name=name)
 
-
 	def __init__(self, state_size, task_size, action_size, learning_rate, name='PGNetwork'):
 		self.state_size = state_size
 		self.task_size = task_size
 		self.action_size = action_size
 		self.learning_rate = learning_rate
-
 
 		with tf.variable_scope(name):
 			self.inputs= tf.placeholder(tf.float32, [None, self.state_size])
@@ -35,7 +32,6 @@ class PGNetwork:
 			
 			# Add this placeholder for having this variable in tensorboard
 			self.mean_reward = tf.placeholder(tf.float32)
-			
 			
 			self.W_fc1 = self._fc_weight_variable([self.state_size, 256])
 			self.b_fc1 = self._fc_bias_variable([256], self.state_size)
@@ -53,6 +49,7 @@ class PGNetwork:
 
 			self.train_opt = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
 
+
 class VNetwork:
 
 	def _fc_weight_variable(self, shape, name='W_fc'):
@@ -65,7 +62,6 @@ class VNetwork:
 		d = 1.0 / np.sqrt(input_channels)
 		initial = tf.random_uniform(shape, minval=-d, maxval=d)
 		return tf.Variable(initial, name=name)
-
 
 	def __init__(self, state_size, task_size, action_size, learning_rate, name='VNetwork'):
 		self.state_size = state_size
@@ -90,7 +86,9 @@ class VNetwork:
 
 			self.train_opt = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
 
+
 class ZNetwork:
+
 	def _fc_weight_variable(self, shape, name='W_fc'):
 		input_channels = shape[0]
 		d = 1.0 / np.sqrt(input_channels)
@@ -102,27 +100,28 @@ class ZNetwork:
 		initial = tf.random_uniform(shape, minval=-d, maxval=d)
 		return tf.Variable(initial, name=name)
 
-
 	def __init__(self, state_size, action_size, learning_rate, name='ZNetwork'):
 		self.state_size = state_size
 		self.action_size = action_size
 		self.learning_rate = learning_rate
+
 		with tf.variable_scope(name):
-			with tf.name_scope("inputs"):
+			self.inputs= tf.placeholder(tf.float32, [None, self.state_size])
+			self.actions = tf.placeholder(tf.int32, [None, self.action_size])
+			self.rewards = tf.placeholder(tf.float32, [None, ])
 
-				self.inputs= tf.placeholder(tf.float32, [None, state_size])
-				self.labels = tf.placeholder(tf.float32, [None, 2])
+			self.W_fc1 = self._fc_weight_variable([self.state_size, 256])
+			self.b_fc1 = self._fc_bias_variable([256], self.state_size)
+			self.fc1 = tf.nn.relu(tf.matmul(self.inputs, self.W_fc1) + self.b_fc1)
 
-				self.W_fc1 = self._fc_weight_variable([self.state_size, 256])
-				self.b_fc1 = self._fc_bias_variable([256], self.state_size)
-				self.fc1 = tf.nn.relu(tf.matmul(self.inputs, self.W_fc1) + self.b_fc1)
+			self.W_fc2 = self._fc_weight_variable([256, self.action_size])
+			self.b_fc2 = self._fc_bias_variable([self.action_size], 256)
+			self.logits = tf.matmul(self.fc1, self.W_fc2) + self.b_fc2
+		
+			self.oracle = tf.nn.softmax(self.logits)
 
-				self.W_fc2 = self._fc_weight_variable([256, 2])
-				self.b_fc2 = self._fc_bias_variable([2], 256)
-				self.logits = tf.matmul(self.fc1, self.W_fc2) + self.b_fc2
+			self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits_v2(logits = self.logits, labels = self.actions)
 			
-				self.oracle = tf.nn.softmax(self.logits)
-
-				self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits = self.logits, labels = self.labels)) 
-
-				self.train_opt = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
+			self.loss = tf.reduce_mean(self.neg_log_prob * self.rewards)
+			
+			self.train_opt = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)

@@ -22,7 +22,7 @@ class MultitaskPolicy(object):
 			map_index,
 			policy,
 			value,
-			oracle,
+			oracle_network,
 			writer,
 			write_op,
 			num_epochs,			
@@ -33,14 +33,14 @@ class MultitaskPolicy(object):
 
 			num_episide,
 			share_exp,
-			combine_gradent,
+			oracle,
 			share_exp_weight
 			):
 
 		self.map_index = map_index
 		self.PGNetwork = policy
 		self.VNetwork = value
-		self.ZNetwork = oracle
+		self.ZNetwork = oracle_network
 
 		self.writer = writer
 		self.write_op = write_op
@@ -51,7 +51,7 @@ class MultitaskPolicy(object):
 		self.save_model = save_model
 
 		self.num_episide =  num_episide
-		self.combine_gradent = combine_gradent
+		self.oracle = oracle
 		self.share_exp = share_exp
 		self.share_exp_weight = share_exp_weight
 
@@ -102,14 +102,15 @@ class MultitaskPolicy(object):
 	def _prepare_current_policy(self, sess, epoch):
 		current_policy = {}
 		current_value = {}
-		current_Z = {}
+		current_oracle = {}
 		range_x = [0, self.env.bounds_x[1]+1]
 		range_y = [0, self.env.bounds_y[1]+1]
 
-		for task in range(self.env.num_task):
-			for x in range(range_x[0]+1,range_x[1]):
-				for y in range(range_y[0]+1,range_y[1]):
-					if self.env.MAP[y][x]!=0:
+		
+		for x in range(range_x[0]+1,range_x[1]):
+			for y in range(range_y[0]+1,range_y[1]):
+				if self.env.MAP[y][x]!=0:
+					for task in range(self.env.num_task):
 						p = sess.run(
 									self.PGNetwork[task].pi, 
 									feed_dict={
@@ -121,44 +122,86 @@ class MultitaskPolicy(object):
 									feed_dict={
 										self.VNetwork[task].inputs: [self.env.cv_state_onehot[x+(y-1)*self.env.bounds_x[1]-1]]})
 						current_value[x,y,task] = v[0][0]
-						
+					p = sess.run(
+								self.ZNetwork.oracle, 
+								feed_dict={
+									self.ZNetwork.inputs: [self.env.cv_state_onehot[x+(y-1)*self.env.bounds_x[1]-1]]})
+					
+					current_oracle[x,y] = p.ravel().tolist()	
 
 		if epoch%self.plot_model==0 or epoch==1:
-			self.plot_figure.plot(current_policy, epoch)
+			self.plot_figure.plot(current_policy, current_oracle, epoch)
 						
-		return current_policy, current_value
+		return current_policy, current_value, current_oracle
 
 	
 
-	def _process_experience_normailize(self, epoch, states, actions, drewards, GAEs, next_states, current_policy, current_value):
+	def _process_experience_normailize(self, epoch, states, actions, drewards, GAEs, next_states, current_policy, current_value, current_oracle):
 
 		batch_ss, batch_as, batch_Qs, batch_Ts = [[],[]], [[],[]], [[],[]], [[],[]]
 		share_ss, share_as, share_Qs, share_Ts = [[],[]], [[],[]], [[],[]], [[],[]]
 
+		state_dict = {}
+		count_dict = {}
 		for task in range(len(states)):
 			for i, (state, action, actual_value, gae, next_state) in enumerate(zip(states[task], actions[task], drewards[task],GAEs[task], next_states[task])):	
 				state_index = state[0]+(state[1]-1)*self.env.bounds_x[1]-1
 
+				#############################################################################################################
+				if state_dict.get(state_index,-1)==-1:
+					state_dict[state_index]=[[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+					count_dict[state_index]=[[0, 0, 0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0, 0, 0]]
+				state_dict[state_index][task][action]+=gae
+				count_dict[state_index][task][action]+=1
+				#############################################################################################################
+
+				#############################################################################################################
 				if self.share_exp:
-					fx = (current_policy[state[0],state[1],task][action]+current_policy[state[0],state[1],1-task][action])/2
-					if self.env.MAP[state[1]][state[0]]==2:
-						important_weight = current_policy[state[0],state[1],task][action]/fx
+					if self.oracle:
+						fx = (current_policy[state[0],state[1],task][action]+current_policy[state[0],state[1],1-task][action])/2
+						
+						share_action = np.random.choice(range(len(current_oracle[state[0],state[1]])), 
+											  p=np.array(current_oracle[state[0],state[1]])/sum(current_oracle[state[0],state[1]]))
+
+						important_weight = 1.0
+						if self.env.MAP[state[1]][state[0]]==2:	
+							important_weight = current_policy[state[0],state[1],task][action]/fx
+								
+						advantage = actual_value - current_value[state[0],state[1],task]
+
+						batch_ss[task].append(self.env.cv_state_onehot[state_index])
+						batch_as[task].append(self.env.cv_action_onehot[action])
+						batch_Qs[task].append(actual_value)
+						batch_Ts[task].append(important_weight*gae)
+
+						if self.env.MAP[state[1]][state[0]]==2:
+							share_ss[1-task].append(self.env.cv_state_onehot[state_index])
+							share_as[1-task].append(self.env.cv_action_onehot[action])
+							important_weight = current_policy[state[0],state[1],1-task][action]/fx
+							share_Ts[1-task].append(important_weight*gae)
 					else:
-						important_weight = 1.0	
-					
-					advantage = actual_value - current_value[state[0],state[1],task]
+						fx = (current_policy[state[0],state[1],task][action]+current_policy[state[0],state[1],1-task][action])/2
+						
+						share_action = np.random.choice(range(len(current_oracle[state[0],state[1]])), 
+											  p=np.array(current_oracle[state[0],state[1]])/sum(current_oracle[state[0],state[1]]))
 
-					batch_ss[task].append(self.env.cv_state_onehot[state_index])
-					batch_as[task].append(self.env.cv_action_onehot[action])
-					batch_Qs[task].append(actual_value)
-					batch_Ts[task].append(important_weight*gae)
+						important_weight = 1.0
+						if current_oracle[state[0],state[1]][1] >0.7 and share_action==1:
+							important_weight = current_policy[state[0],state[1],task][action]/fx
+								
+						
+						advantage = actual_value - current_value[state[0],state[1],task]
 
+						batch_ss[task].append(self.env.cv_state_onehot[state_index])
+						batch_as[task].append(self.env.cv_action_onehot[action])
+						batch_Qs[task].append(actual_value)
+						batch_Ts[task].append(important_weight*gae)
 
-					if self.env.MAP[state[1]][state[0]]==2:
-						share_ss[1-task].append(self.env.cv_state_onehot[state_index])
-						share_as[1-task].append(self.env.cv_action_onehot[action])
-						important_weight = current_policy[state[0],state[1],1-task][action]/fx
-						share_Ts[1-task].append(important_weight*gae)
+						if current_oracle[state[0],state[1]][1] >0.7 and  share_action == 1:
+							share_ss[1-task].append(self.env.cv_state_onehot[state_index])
+							share_as[1-task].append(self.env.cv_action_onehot[action])
+							important_weight = current_policy[state[0],state[1],1-task][action]/fx
+							share_Ts[1-task].append(important_weight*gae)
 				else:
 
 					advantage = actual_value - current_value[state[0],state[1],task]
@@ -167,14 +210,69 @@ class MultitaskPolicy(object):
 					batch_as[task].append(self.env.cv_action_onehot[action])
 					batch_Qs[task].append(actual_value)
 					batch_Ts[task].append(gae)
-
-
+				#############################################################################################################
+		
+		z_ss, z_as, z_rs = [], [], []
+		for v in state_dict.keys():
+			for action in range(self.env.action_size):
+				if count_dict[v][0][action]>0:
+					state_dict[v][0][action] = state_dict[v][0][action]/count_dict[v][0][action]
+				if count_dict[v][1][action]>0:
+					state_dict[v][1][action] = state_dict[v][1][action]/count_dict[v][1][action]
+				z_reward = 0.0
 				
-		return batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts
+				#if state_dict[v][0][action]>0 and state_dict[v][1][action]>0:
+				if state_dict[v][0][action]*state_dict[v][1][action]>0:
+					z_reward = min(abs(state_dict[v][0][action]),abs(state_dict[v][1][action]))
+					z_action = [0,1]
+				
+				if state_dict[v][0][action]*state_dict[v][1][action]<0:
+					z_reward = min(abs(state_dict[v][0][action]),abs(state_dict[v][1][action]))
+					z_action = [1,0]
+				
+				# one move and one do not move to this state
+				# one agent consider this direction not good while other consider good
+				#
+				# if agent in share area (mean have same must go state-also consider temporal goal), 
+				# they should have same reward signal for acting same action in same state,
+				# therefore, the policy may update the same, because of insufficent sample, the gained knowledge
+				# may abit different, we want to analysis reward signal form observed sample to decide what state
+				# may share-exp then combine experience to faster learn.
+				#
+				# so in the begining, at a state, agents may act differently, not mean at this state, they should not share
+				# if the same, share gain nothing, but at the end, when act the same, not need share
+				#
+				#
+				# Act the same, but diffrence in reward signal
+				#	=> shouldnt share
+				# 	=> noise
+				# HOW TO distinquish: 
+				#	none-share state: one agent move to but other not (and it should be that)
+				#		opinion: this happend more and more frequent
+				#	share state: also one agent move to but other not (just because insufficient exp at first)
+				#		opinion: this happend less and less frequent (or can't try to share)
+
+				if 	sum(count_dict[v][0])==0 and sum(count_dict[v][1])>0:
+					z_reward = 0.001
+					z_action = [1,0]
+				
+				if 	sum(count_dict[v][1])==0 and sum(count_dict[v][0])>0:
+					z_reward = 0.001
+					z_action = [1,0]
+				
+				if z_reward>0.0:
+					z_ss.append(self.env.cv_state_onehot[v])
+					z_as.append(z_action)
+					z_rs.append(z_reward)
+
+			#print state_dict[v][0]		
+			#print state_dict[v][1]		
+		print len(z_ss)			
+		return batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, z_ss, z_as, z_rs
 	
 
 	def _make_batch(self, sess, epoch):
-		current_policy, current_value= self._prepare_current_policy(sess, epoch)
+		current_policy, current_value, current_oracle = self._prepare_current_policy(sess, epoch)
 
 		# states = [
 		#task1		[[---episode_1---],...,[---episode_n---]],
@@ -201,9 +299,9 @@ class MultitaskPolicy(object):
 		next_states[1] = np.concatenate(next_states[1])
 		
 		
-		batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts = self._process_experience_normailize(epoch, states, actions, discounted_rewards, GAEs, next_states, current_policy, current_value) 
+		batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, z_ss, z_as, z_rs= self._process_experience_normailize(epoch, states, actions, discounted_rewards, GAEs, next_states, current_policy, current_value, current_oracle) 
 
-		return batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, np.concatenate(rewards)
+		return batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, np.concatenate(rewards), z_ss, z_as, z_rs
 		
 		
 	def train(self, sess, saver):
@@ -215,7 +313,7 @@ class MultitaskPolicy(object):
 			
 			#---------------------------------------------------------------------------------------------------------------------#	
 			#ROLOUT state_dict
-			batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, rewards_mb  = self._make_batch(sess, epoch)
+			batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, rewards_mb, z_ss, z_as, z_rs  = self._make_batch(sess, epoch)
 			#---------------------------------------------------------------------------------------------------------------------#	
 		
 			#---------------------------------------------------------------------------------------------------------------------#	
@@ -223,9 +321,13 @@ class MultitaskPolicy(object):
 			
 			test_num_task = 2
 			if self.share_exp:
-				
+				if len(z_ss)>0:
+					sess.run([self.ZNetwork.train_opt], feed_dict={
+																self.ZNetwork.inputs: z_ss,
+																self.ZNetwork.actions: z_as, 
+																self.ZNetwork.rewards: z_rs 
+																})	
 				for task_index in range(test_num_task):
-					
 					
 					sess.run([self.VNetwork[task_index].train_opt], feed_dict={
 																self.VNetwork[task_index].inputs: batch_ss[task_index],

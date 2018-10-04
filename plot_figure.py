@@ -27,7 +27,7 @@ class PlotFigure(object):
 		for i, angle in enumerate(angles):
 			self._plot_point(ax, orig, angle, lengths[i]*1.0 / max_len * max_length)
 
-	def plot(self, policy, epoch):
+	def plot(self, policy, oracle, epoch):
 		plt.clf()
 		
 		for index in range(self.env.num_task):
@@ -48,4 +48,23 @@ class PlotFigure(object):
 		if not os.path.exists('../plot/'+self.save_name):
 			os.makedirs('../plot/'+self.save_name)
 		plt.savefig('../plot/'+self.save_name+'/'+str(epoch)+'.png', bbox_inches='tight')
+		#plt.pause(0.00001)
+
+		plt.clf()
+		
+		for index in range(self.env.num_task):
+			ax = plt.subplot(1,2,index+1)
+			plt.title(str(epoch))
+			for x in range(self.range_x[0]+1,self.range_x[1]):
+				for y in range(self.range_y[0]+1,self.range_y[1]):
+					if self.env.MAP[y][x]!=0:
+						self._plot_star(ax, (x, y), [oracle[x,y][0],0,0,0,oracle[x,y][1],0,0,0])
+						if oracle[x,y][1]>0.5:
+							plt.plot([x,], [y,], marker='o', markersize=2, color="red")
+					else:	
+						plt.plot([x,], [y,], marker='o', markersize=2, color="green")
+		
+		if not os.path.exists('../plot/'+self.save_name):
+			os.makedirs('../plot/'+self.save_name)
+		plt.savefig('../plot/'+self.save_name+'/oracle'+str(epoch)+'.png', bbox_inches='tight')
 		#plt.pause(0.00001)
