@@ -17,7 +17,9 @@ class RolloutThread(object):
 		start_x,
 		start_y,
 		policy,
-		map_index):
+		map_index,
+		use_laser,
+		immortal):
 	
 		self.sess = sess
 		self.network = network
@@ -25,7 +27,7 @@ class RolloutThread(object):
 		self.start_x = start_x
 		self.start_y = start_y
 		self.policy = policy
-		self.env = Terrain(map_index)
+		self.env = Terrain(map_index, use_laser, immortal)
 		self.onehot_actions = np.identity(self.env.action_size, dtype=int)
 
 	def rollout(self):

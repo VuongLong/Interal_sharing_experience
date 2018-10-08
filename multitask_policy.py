@@ -30,6 +30,7 @@ class MultitaskPolicy(object):
 			save_name,
 			num_episode,
 			share_exp,
+			immortal,
 			combine_gradent,
 			share_exp_weight,
 			sort_init,
@@ -49,6 +50,7 @@ class MultitaskPolicy(object):
 		self.save_name = save_name
 		self.plot_model = plot_model
 		self.save_model = save_model
+		self.immortal = immortal
 
 		self.gradients = [[] for i in range(self.num_task)]
 		self.batch_eps = [[] for i in range(self.num_task)]
@@ -58,13 +60,13 @@ class MultitaskPolicy(object):
 		self.share_exp = share_exp
 		self.share_exp_weight = share_exp_weight
 
-		self.env = Terrain(self.map_index, use_laser)
+		self.env = Terrain(self.map_index, use_laser, immortal)
 
 		assert self.num_task <= self.env.num_task
 
 		self.plot_figure = PlotFigure(self.save_name, self.env, self.num_task, os.path.join('plot', timer))
 
-		self.rollout = Rollout(number_episode = self.num_episode, num_task = self.num_task, map_index = self.map_index, sort_init = sort_init)
+		self.rollout = Rollout(number_episode = self.num_episode, num_task = self.num_task, map_index = self.map_index, sort_init = sort_init, use_laser = use_laser, immortal = immortal)
 
 
 	def _discount_rewards(self, episode_rewards):
@@ -130,23 +132,28 @@ class MultitaskPolicy(object):
 			state_index = self.env.state_to_index[v[1]][v[0]]
 
 			# normalize discounted rewards
-			if abs(np.std(samples[v]))>1e-3:
-				samples[v] = (np.array(samples[v])-np.mean(samples[v]))/np.std(samples[v])
+			# if abs(np.std(samples[v]))>1e-3:
+			# 	samples[v] = (np.array(samples[v])-np.mean(samples[v]))/np.std(samples[v])
 			
-			for i, reward in enumerate(samples[v]):
+			for i, (reward, action) in enumerate(zip(samples[v], action_samples[v])):
 
 				# original samples
 				batch_ss[v[2]].append(self.env.cv_state_onehot[state_index])
 				batch_as[v[2]].append(self.env.cv_action_onehot[action_samples[v][i]])
-				batch_drs[v[2]].append(reward)
 
 				# interpolate sharing samples only interpolate samples in sharing areas 
 				if self.share_exp and self.env.MAP[v[1]][v[0]]==2:
+					fx = (current_policy[v[0],v[1],1-v[2]][action]+current_policy[v[0],v[1],v[2]][action])/2
+					batch_drs[v[2]].append(current_policy[v[0],v[1],v[2]][action] * reward / fx)
+
 					share_ss[1-v[2]].append(self.env.cv_state_onehot[state_index])
 					share_as[1-v[2]].append(self.env.cv_action_onehot[action_samples[v][i]])
-					important_weight = current_policy[v[0],v[1],1-v[2]][action_samples[v][i]]/current_policy[v[0],v[1],v[2]][action_samples[v][i]]
-					share_drs[1-v[2]].append(important_weight*reward)
-					
+
+					share_drs[1-v[2]].append(current_policy[v[0],v[1],1-v[2]][action] * reward / fx)
+				
+				else:
+					batch_drs[v[2]].append(reward)
+
 		return batch_ss, batch_as, batch_drs, share_ss, share_as, share_drs, samples
 	
 

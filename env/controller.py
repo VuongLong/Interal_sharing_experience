@@ -9,7 +9,10 @@ class Player:
         return [self.x, self.y]
 
     def action(self, xy_m):
-        # if self.terrain.MAP[self.y + self.cv_action[xy_m][1]][self.x + self.cv_action[xy_m][0]] != 0:
+
+        if self.terrain.immortal and self.terrain.MAP[self.y + self.cv_action[xy_m][1]][self.x + self.cv_action[xy_m][0]] == 0:
+            return self.terrain.getreward()
+
         self.x += self.cv_action[xy_m][0]
         self.y += self.cv_action[xy_m][1]
         

@@ -1,5 +1,6 @@
 import tensorflow as tf
 import os 
+import time
 
 from datetime import datetime
 from network import PGNetwork, PGNetwork_deeper, PGNetwork_wider
@@ -19,7 +20,7 @@ if ask == '' or ask.lower() == 'y':
 else:
 	TIMER = sorted(os.listdir('logs/'))[-1]
 
-def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_init, num_episode, learning_rate = 0.001, use_laser = False, change_arch = False):
+def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_init, immortal, num_episode, num_iters, learning_rate = 0.001, use_laser = False, change_arch = False):
 	tf.reset_default_graph()
 	
 	if share_exp:
@@ -30,7 +31,7 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 	else:
 		network_name_scope = 'Non'
 
-	env = Terrain(map_index, use_laser)
+	env = Terrain(map_index, use_laser, immortal)
 	policies = []
 	
 	if not change_arch:
@@ -73,9 +74,9 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 		if combine_gradent: 
 			writer = tf.summary.FileWriter(os.path.join(log_folder, 'Combine_gradients'))
 		else:	
-			writer = tf.summary.FileWriter(os.path.join(log_folder, 'Share_samples'))
+			writer = tf.summary.FileWriter(os.path.join(log_folder, 'Share_samples_' + sort_init + "_laser_" + str(use_laser) + "_arch_" + str(change_arch) + '_immortal_' + str(immortal)))
 	else:
-		writer = tf.summary.FileWriter(os.path.join(log_folder, 'Non_' + sort_init + "_laser_" + str(use_laser) + "_arch_" + str(change_arch)))
+		writer = tf.summary.FileWriter(os.path.join(log_folder, 'Non_' + sort_init + "_laser_" + str(use_laser) + "_arch_" + str(change_arch) + '_immortal_' + str(immortal)))
 	
 	test_name =  "map_" + str(map_index) + "_test_" + str(test_time)
 	tf.summary.scalar(test_name, tf.reduce_mean([policy.mean_reward for policy in policies], 0))
@@ -88,13 +89,14 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 										write_op 			= write_op,
 										action_size 		= 8,
 										num_task 			= num_task,
-										num_iters 			= 1500000,
+										num_iters 			= num_iters,
 										gamma 				= 0.99,
-										plot_model 			= 50,
+										plot_model 			= 100,
 										save_model 			= 100,
-										save_name 			= network_name_scope + '_' + test_name + '_' + sort_init + "_laser_" + str(use_laser) + "_arch_" + str(change_arch),
+										save_name 			= network_name_scope + '_' + test_name + '_' + sort_init + "_laser_" + str(use_laser) + "_arch_" + str(change_arch) + '_immortal_' + str(immortal),
 										num_episode 		= num_episode,
 										share_exp 			= share_exp,
+										immortal			= immortal,
 										combine_gradent 	= combine_gradent,
 										share_exp_weight 	= 0.5,
 										sort_init			= sort_init,
@@ -108,19 +110,11 @@ def training(test_time, map_index, num_task, share_exp, combine_gradent, sort_in
 
 if __name__ == '__main__':
 
-	# for i in range(5):
-	# 	training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'local', num_episode = 20)
-	# 	training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'global', num_episode = 20)
-	# 	training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', num_episode = 20)
+	start = time.time()
+	for i in range(2):
+		training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', immortal = False, num_episode = 20, num_iters = 2000000, use_laser = False)
+		training(test_time = i, map_index = 4, num_task = 2, share_exp = True, combine_gradent = False, sort_init = 'none',  immortal = False, num_episode = 20, num_iters = 2000000, use_laser = False)
+		training(test_time = i, map_index = 4, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none',  immortal = False, num_episode = 20, num_iters = 2000000, use_laser = True)
 
-	for i in range(5):
-		# training(test_time = i, map_index = 6, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', num_episode = 20, learning_rate = 0.0001, use_laser = True)
-		# training(test_time = i, map_index = 6, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', num_episode = 20, use_laser = False, change_arch = True)
-		training(test_time = i, map_index = 5, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'none', num_episode = 20, use_laser = False)
-		# training(test_time = i, map_index = 6, num_task = 2, share_exp = False, combine_gradent = False, sort_init = 'global', num_episode = 20, use_laser = False)
-		# training(test_time = i, map_index = 6, num_task = 2, share_exp = False, combine_gradent = True, sort_init = 'none', num_episode = 10, use_laser = False)
-		training(test_time = i, map_index = 5, num_task = 2, share_exp = True, combine_gradent = False, sort_init = 'none', num_episode = 20, use_laser = False)
-		# training(test_time = i, map_index = 6, num_task = 2, share_exp = False, combine_gradent = True, sort_init = 'none', num_episode = 20, use_laser = False)
+	print("Done in {} hours".format((time.time() - start)/3600))
 
-		# training(test_time = i, map_index = 4, num_task = 2, share_exp = True, combine_gradent = True, num_episode = 20)
-		# training(test_time = i, map_index = 4, num_task = 2, share_exp = True, combine_gradent = False, num_episode = 20)

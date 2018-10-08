@@ -6,7 +6,6 @@ import threading
 import random
 
 from rollout_thread import RolloutThread
-from env.terrain import Terrain
 from random import randint
 from env.sxsy import SXSY
 
@@ -17,11 +16,15 @@ class Rollout(object):
 		number_episode,
 		num_task,
 		map_index,
-		sort_init):
+		sort_init,
+		use_laser,
+		immortal):
 		
 		self.number_episode = number_episode
 		self.map_index = map_index
 		self.init_maps = SXSY[self.map_index]
+		self.use_laser = use_laser
+		self.immortal = immortal
 
 		if sort_init == 'local':
 			s = [l for ep in SXSY[self.map_index] for l in sorted(ep, key=lambda element: (element[1], element[0]))]
@@ -45,7 +48,9 @@ class Rollout(object):
 									start_x = sx,
 									start_y = sy,
 									policy = current_policy,
-									map_index = self.map_index)
+									map_index = self.map_index,
+									use_laser = self.use_laser,
+									immortal = self.immortal)
 
 		ep_states, ep_tasks, ep_actions, ep_rewards = thread_rollout.rollout()
 		
