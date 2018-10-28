@@ -6,7 +6,7 @@ from env.map import ENV_MAP
 import json
 SXSY = {}
 
-for i in range(5):
+for i in range(2):
 	index = i+1
 	MAP = ENV_MAP[index]['map']
 	bounds_x = ENV_MAP[index]['size_x']

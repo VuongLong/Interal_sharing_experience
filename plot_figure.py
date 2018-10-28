@@ -49,7 +49,7 @@ class PlotFigure(object):
 			os.makedirs('../plot/'+self.save_name)
 		plt.savefig('../plot/'+self.save_name+'/'+str(epoch)+'.png', bbox_inches='tight')
 		#plt.pause(0.00001)
-
+		'''
 		plt.clf()
 		
 		for index in range(self.env.num_task):
@@ -58,8 +58,8 @@ class PlotFigure(object):
 			for x in range(self.range_x[0]+1,self.range_x[1]):
 				for y in range(self.range_y[0]+1,self.range_y[1]):
 					if self.env.MAP[y][x]!=0:
-						self._plot_star(ax, (x, y), [oracle[x,y][0],0,0,0,oracle[x,y][1],0,0,0])
-						if oracle[x,y][1]>0.5:
+						self._plot_star(ax, (x, y), [oracle[x,y,0,1][0],0,0,0,oracle[x,y,0,1][1],0,0,0])
+						if oracle[x,y,0,1][1]>0.5:
 							plt.plot([x,], [y,], marker='o', markersize=2, color="red")
 					else:	
 						plt.plot([x,], [y,], marker='o', markersize=2, color="green")
@@ -68,3 +68,4 @@ class PlotFigure(object):
 			os.makedirs('../plot/'+self.save_name)
 		plt.savefig('../plot/'+self.save_name+'/oracle'+str(epoch)+'.png', bbox_inches='tight')
 		#plt.pause(0.00001)
+		'''

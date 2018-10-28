@@ -81,7 +81,7 @@ class Rollout(object):
 			'''
 			index = 0
 			for i in range(self.number_episode):
-				[sx, sy] = SXSY[self.map_index][epoch-1][i]
+				[sx, sy] = SXSY[self.map_index][epoch%2000][i]
 				train_threads.append(threading.Thread(target=self._rollout_process, args=(sess, index, network, task, sx, sy, policy,)))
 				index+=1	
 

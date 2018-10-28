@@ -23,12 +23,12 @@ class PGNetwork:
 		self.task_size = task_size
 		self.action_size = action_size
 		self.learning_rate = learning_rate
+		self.clip_range = 0.2
 
 		with tf.variable_scope(name):
 			self.inputs= tf.placeholder(tf.float32, [None, self.state_size])
 			self.actions = tf.placeholder(tf.int32, [None, self.action_size])
 			self.rewards = tf.placeholder(tf.float32, [None, ])
-		
 			
 			# Add this placeholder for having this variable in tensorboard
 			self.mean_reward = tf.placeholder(tf.float32)
@@ -44,7 +44,7 @@ class PGNetwork:
 			self.pi = tf.nn.softmax(self.logits)
 			
 			self.neg_log_prob = tf.nn.softmax_cross_entropy_with_logits_v2(logits = self.logits, labels = self.actions)
-			
+
 			self.loss = tf.reduce_mean(self.neg_log_prob * self.rewards)
 
 			self.train_opt = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
@@ -82,8 +82,8 @@ class VNetwork:
 			self.b_fc2 = self._fc_bias_variable([1], 256)
 			self.value = tf.matmul(self.fc1, self.W_fc2) + self.b_fc2
 			
-			self.loss = tf.nn.l2_loss(self.rewards - self.value)
-
+			#self.loss = tf.reduce_mean(0.5 * tf.square(self.rewards - self.value))
+			self.loss = 0.5 * tf.reduce_sum(tf.square(self.rewards - tf.reshape(self.value,[-1])))
 			self.train_opt = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
 
 
