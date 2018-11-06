@@ -53,16 +53,16 @@ def training(test_time, map_index, share_exp, oracle, num_episide, num_epoch):
 			oracle_network[i,j] = ZNetwork(
 					state_size = env.size_m, 
 					action_size = 2, 
-					learning_rate = learning_rate,
+					learning_rate = learning_rate*5,
 					name = "oracle"+str(i)+"_"+str(i)
 					)
 
-	sess = tf.Session()
-	#gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.1)
-	#sess = tf.Session(config = tf.ConfigProto(gpu_options = gpu_options))
+	#sess = tf.Session()
+	gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5)
+	sess = tf.Session(config = tf.ConfigProto(gpu_options = gpu_options))
 	sess.run(tf.global_variables_initializer())
 
-	saver = tf.train.Saver()
+	#saver = tf.train.Saver()
 
 	if share_exp:
 		if oracle: 
@@ -85,7 +85,7 @@ def training(test_time, map_index, share_exp, oracle, num_episide, num_epoch):
 									write_op = write_op,
 									num_epochs = num_epoch,
 									gamma = 0.99,
-									plot_model = 10000,
+									plot_model = 20000,
 									save_model = 10000,
 									save_name = network_name_scope+'_'+test_name+'_'+str(num_episide),
 									num_episide = num_episide,
@@ -101,7 +101,7 @@ def training(test_time, map_index, share_exp, oracle, num_episide, num_epoch):
 	#saver.save(sess, "./model_init_onehot/model.ckpt")
 	#saver.restore(sess, "./model_init_onehot/model.ckpt")
 	
-	multitask_agent.train(sess, saver)
+	multitask_agent.train(sess)
 	sess.close()
 
 
@@ -112,14 +112,14 @@ if __name__ == '__main__':
 	parser.add_argument("--num_episode", nargs='+', type=int, default = [4, 8, 12, 16, 20, 24])
 	args = parser.parse_args()
 
-	map_index = 1
+	map_index = 2
 	for num_ep in args.num_episode:
 		#if args.share_type == 1:
-		training(test_time=num_ep, map_index=map_index, share_exp = True, oracle=True, num_episide = num_ep, num_epoch =args.num_epoch)
+		#training(test_time=num_ep, map_index=map_index, share_exp = True, oracle=True, num_episide = num_ep, num_epoch =args.num_epoch)
 		#if args.share_type == 2:
 		training(test_time=num_ep, map_index=map_index, share_exp = True, oracle=False, num_episide = num_ep, num_epoch =args.num_epoch)
 		#if args.share_type == 3:
-		training(test_time=num_ep, map_index=map_index, share_exp = False, oracle=False, num_episide =num_ep, num_epoch =args.num_epoch)
+		#training(test_time=num_ep, map_index=map_index, share_exp = False, oracle=False, num_episide =num_ep, num_epoch =args.num_epoch)
 
 
 '''

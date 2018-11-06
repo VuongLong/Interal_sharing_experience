@@ -139,7 +139,7 @@ class MultitaskPolicy(object):
 								current_oracle[x,y,i,j][1]-= boundary
 								current_oracle[x,y,i,j][0]+= boundary
 							else:
-								current_oracle[x,y,i,j]=[1.0,0,0] 	
+								current_oracle[x,y,i,j]=[1.0,0.0] 	
 							current_oracle[x,y,j,i] = current_oracle[x,y,i,j]
 
 		if epoch%self.plot_model==0:
@@ -164,11 +164,13 @@ class MultitaskPolicy(object):
 		state_dict = {}
 		count_dict = {}
 
-
+		use_gae = 1
 		for task in range(self.env.num_task):
 			for i, (state, action, actual_value, gae, next_state) in enumerate(zip(states[task], actions[task], drewards[task],GAEs[task], next_states[task])):	
 				state_index = state[0]+(state[1]-1)*self.env.bounds_x[1]-1
-
+				advantage = actual_value - current_value[state[0],state[1],task]
+				if use_gae==1:
+					advantage = gae		
 				#############################################################################################################
 				if state_dict.get(state_index,-1)==-1:
 					state_dict[state_index]=[]
@@ -176,8 +178,8 @@ class MultitaskPolicy(object):
 					for tidx in range(self.env.num_task):
 						state_dict[state_index].append([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 						count_dict[state_index].append([0, 0, 0, 0, 0, 0, 0, 0])
-								
-				state_dict[state_index][task][action]+=gae
+						
+				state_dict[state_index][task][action]+=advantage
 				count_dict[state_index][task][action]+=1
 				#############################################################################################################
 
@@ -261,9 +263,11 @@ class MultitaskPolicy(object):
 						
 
 					for tidx in range(self.env.num_task):
-						#if share_dict[state_index][task][tidx]==1:
 						share_action =np.random.choice(range(len(current_oracle[state[0],state[1],task,tidx])), 
 											  p=np.array(current_oracle[state[0],state[1],task,tidx])/sum(current_oracle[state[0],state[1],task,tidx]))
+						if self.oracle:
+							share_action = share_dict[state_index][task][tidx]
+
 						if share_action==1:				
 							important_weight = current_policy[state[0],state[1],tidx][action]/mean_sa_dict[state_index, action][tidx]
 							
@@ -274,7 +278,8 @@ class MultitaskPolicy(object):
 								clip_important_weight = 0.8	
 
 							advantage = actual_value - current_value[state[0],state[1],task]
-							advantage = gae
+							if use_gae==1:
+								advantage = gae	
 							if (important_weight<=1.2 and important_weight>=0.8) or (clip_important_weight*advantage>important_weight*advantage):
 								if tidx==task:
 									batch_ss[tidx].append(self.env.cv_state_onehot[state_index])
@@ -289,7 +294,8 @@ class MultitaskPolicy(object):
 				else:
 
 					advantage = actual_value - current_value[state[0],state[1],task]
-					advantage=gae
+					if use_gae==1:
+						advantage = gae	
 					batch_ss[task].append(self.env.cv_state_onehot[state_index])
 					batch_as[task].append(self.env.cv_action_onehot[action])
 					batch_Qs[task].append(actual_value)
@@ -305,9 +311,10 @@ class MultitaskPolicy(object):
 				z_rs[i,j] = []
 		for v in state_dict.keys():
 			
-			for i in range (self.env.num_task):
-				if count_dict[v][i][action]>0:
-					state_dict[v][i][action] = state_dict[v][i][action]/count_dict[v][i][action]
+			#for i in range (self.env.num_task):
+			#	for action in range(self.env.action_size):
+			#		if count_dict[v][i][action]>0:
+			#			state_dict[v][i][action] = state_dict[v][i][action]/count_dict[v][i][action]
 
 			for i in range (self.env.num_task-1):
 				for j in range(i+1,self.env.num_task):
@@ -371,7 +378,7 @@ class MultitaskPolicy(object):
 		return batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, np.concatenate(rewards), z_ss, z_as, z_rs
 		
 		
-	def train(self, sess, saver):
+	def train(self, sess):
 		#run with saved initial model
 		epoch = 1
 		num_sample = 0
@@ -426,7 +433,9 @@ class MultitaskPolicy(object):
 																		self.PGNetwork[task_index].actions: batch_as[task_index],
 																		self.PGNetwork[task_index].rewards: batch_Ts[task_index]
 																		})
-					
+					#if epoch==1:
+					#	self.VNetwork[task_index].save_model(sess,"pretrain")
+					#	self.PGNetwork[task_index].save_model(sess,"/pretrain")
 			#---------------------------------------------------------------------------------------------------------------------#	
 			
 
@@ -447,10 +456,7 @@ class MultitaskPolicy(object):
 			#---------------------------------------------------------------------------------------------------------------------#	
 
 
-			#---------------------------------------------------------------------------------------------------------------------#	
-			# SAVE MODEL
-			if epoch % self.save_model == 0:
-				saver.save(sess, '../models/'+self.save_name+'.ckpt')
-				print("Model saved")
+				
+		
 			#---------------------------------------------------------------------------------------------------------------------#		
 			epoch += 1  
