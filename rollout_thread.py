@@ -37,7 +37,6 @@ class RolloutThread(object):
 		step = 1	
 
 		while True:
-			step+=1
 			if step > 50:
 				#print('re-rollout')
 				#sys.stdout.flush()
@@ -67,4 +66,8 @@ class RolloutThread(object):
 			if done:     
 				break
 
-		return states, tasks, actions, rewards, next_states	
+			step+=1
+
+		redundant_steps = step + self.env.min_step[self.task][states[-1][0], states[-1][1]] - self.env.min_step[self.task][self.start_x, self.start_y]
+
+		return states, tasks, actions, rewards, next_states, redundant_steps

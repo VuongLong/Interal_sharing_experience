@@ -20,7 +20,7 @@ class Rollout(object):
 		self.map_index = map_index
 		self.env = Terrain(map_index)
 
-		self.states, self.tasks, self.actions, self.rewards, self.next_states = [],[],[],[],[]
+		self.states, self.tasks, self.actions, self.rewards, self.next_states, self.redundant_steps = [],[],[],[],[],[]
 
 		for task in range(self.env.num_task):
 			self.states.append([])
@@ -28,13 +28,14 @@ class Rollout(object):
 			self.actions.append([])
 			self.rewards.append([])
 			self.next_states.append([])
+			self.redundant_steps.append([])
 			for i in range(self.number_episode):
 				self.states[task].append([])
 				self.tasks[task].append([])
 				self.actions[task].append([])
 				self.rewards[task].append([])
 				self.next_states[task].append([])
-
+				self.redundant_steps[task].append([])
 
 	def _rollout_process(self, sess, index, network, task, sx, sy, current_policy):
 		thread_rollout = RolloutThread(
@@ -46,29 +47,32 @@ class Rollout(object):
 									policy = current_policy,
 									map_index = self.map_index)
 
-		ep_states, ep_tasks, ep_actions, ep_rewards, ep_next_states = thread_rollout.rollout()
+		ep_states, ep_tasks, ep_actions, ep_rewards, ep_next_states, ep_redundant_steps = thread_rollout.rollout()
 		
 		self.states[task][index]=ep_states
 		self.tasks[task][index]=ep_tasks
 		self.actions[task][index]=ep_actions
 		self.rewards[task][index]=ep_rewards
 		self.next_states[task][index]=ep_next_states
+		self.redundant_steps[task][index] = ep_redundant_steps
 
 
 	def rollout_batch(self, sess, network, policy, epoch):
-		self.states, self.tasks, self.actions, self.rewards, self.next_states = [],[],[],[],[]
+		self.states, self.tasks, self.actions, self.rewards, self.next_states, self.redundant_steps = [],[],[],[],[],[]
 		for task in range(self.env.num_task):
 			self.states.append([])
 			self.tasks.append([])
 			self.actions.append([])
 			self.rewards.append([])
 			self.next_states.append([])
+			self.redundant_steps.append([])
 			for i in range(self.number_episode):
 				self.states[task].append([])
 				self.tasks[task].append([])
 				self.actions[task].append([])
 				self.rewards[task].append([])
 				self.next_states[task].append([])
+				self.redundant_steps[task].append([])
 
 		train_threads = []
 		for task in range(self.env.num_task):
@@ -93,4 +97,4 @@ class Rollout(object):
 		for t in train_threads:
 			t.join()		
 
-		return self.states, self.tasks, self.actions, self.rewards, self.next_states	
+		return self.states, self.tasks, self.actions, self.rewards, self.next_states, self.redundant_steps

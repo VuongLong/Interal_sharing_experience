@@ -1,0 +1,2 @@
+model_checkpoint_path: "PGNetwork_0"
+all_model_checkpoint_paths: "PGNetwork_0"

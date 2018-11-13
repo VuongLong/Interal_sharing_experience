@@ -3,7 +3,7 @@ import numpy as np           # Handle matrices
 import random                # Handling random number generation
 import time                  # Handling time calculation
 import math
-
+import os
 
 class PGNetwork:
 
@@ -32,6 +32,9 @@ class PGNetwork:
 			
 			# Add this placeholder for having this variable in tensorboard
 			self.mean_reward = tf.placeholder(tf.float32)
+			self.mean_redundant = tf.placeholder(tf.float32)
+			self.average_mean_redundant = tf.placeholder(tf.float32)
+			self.total_mean_reward = tf.placeholder(tf.float32)
 			
 			self.W_fc1 = self._fc_weight_variable([self.state_size, 256])
 			self.b_fc1 = self._fc_bias_variable([256], self.state_size)
@@ -133,6 +136,7 @@ class ZNetwork:
 		self.state_size = state_size
 		self.action_size = action_size
 		self.learning_rate = learning_rate
+		self.name = name
 
 		with tf.variable_scope(name):
 			self.inputs= tf.placeholder(tf.float32, [None, self.state_size])
@@ -154,3 +158,21 @@ class ZNetwork:
 			self.loss = tf.reduce_mean(self.neg_log_prob * self.rewards)
 			
 			self.train_opt = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.loss)
+
+		self.saver = tf.train.Saver(self.get_vars())
+
+	def get_vars(self):
+		return [
+			self.W_fc1, self.b_fc1,
+			self.W_fc2, self.b_fc2
+		]
+
+	def save_model(self, sess, save_dir):
+		if not os.path.isdir(os.path.join(save_dir, self.name)):
+			os.makedirs(os.path.join(save_dir, self.name))
+		save_path = os.path.join(save_dir, self.name, self.name)
+		self.saver.save(sess, save_path)
+
+	def restore_model(self, sess, save_dir):
+		save_path = os.path.join(save_dir, self.name, self.name)
+		self.saver.restore(sess, save_path)
