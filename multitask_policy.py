@@ -235,7 +235,7 @@ class MultitaskPolicy(object):
 
 							#Calculate distrubtion of combination sample #######################################################	
 							if mean_sa_dict.get((state_index, action),-1)==-1:
-								mean_sa_dict[state_index, action] = []
+								mean_sa_dict[state_index, action] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 								for tidx in range(self.env.num_task):
 									if  self.env.pretrain[tidx]==0:
@@ -247,7 +247,7 @@ class MultitaskPolicy(object):
 													mean_policy_action+=(current_policy[state[0], state[1], otidx][action])
 													count+=1	
 										mean_policy_action/=count
-									mean_sa_dict[state_index, action].append(mean_policy_action)
+										mean_sa_dict[state_index, action][tidx]=mean_policy_action
 							####################################################################################################
 
 						else:
@@ -264,8 +264,8 @@ class MultitaskPolicy(object):
 
 							#Calculate distrubtion of combination sample #######################################################	
 							if mean_sa_dict.get((state_index, action),-1)==-1:
-								mean_sa_dict[state_index, action] = []
-
+								mean_sa_dict[state_index, action] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+								
 								for tidx in range(self.env.num_task):
 									if  self.env.pretrain[tidx]==0:
 										mean_policy_action = 0.0
@@ -275,8 +275,8 @@ class MultitaskPolicy(object):
 												mean_policy_action+=(current_oracle[state[0],state[1],otidx,tidx][1]*current_policy[state[0], state[1], otidx][action])
 												count+=current_oracle[state[0],state[1],otidx,tidx][1]	
 												
-									mean_policy_action/=count
-									mean_sa_dict[state_index, action].append(mean_policy_action)			
+										mean_policy_action/=count
+										mean_sa_dict[state_index, action][tidx]=mean_policy_action			
 							####################################################################################################
 							
 						advantage /=count_a	
@@ -496,7 +496,7 @@ class MultitaskPolicy(object):
 				sum_dict[self.PGNetwork[task_index].mean_reward] = np.divide(np.sum(rewards_mb[task_index]), self.num_episide)
 				sum_dict[self.PGNetwork[task_index].mean_redundant] = redundant_steps[task_index]
 
-			total_reward_of_that_batch/=(self.env.num_task-np.sum(self.env.pretrain))		
+			total_reward_of_that_batch/=self.env.pretrain.count(0)		
 			mean_reward_of_that_batch = np.divide(total_reward_of_that_batch, self.num_episide)
 			
 			sum_dict[self.PGNetwork[0].total_mean_reward] = mean_reward_of_that_batch
