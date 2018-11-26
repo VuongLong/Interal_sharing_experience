@@ -1,0 +1,3 @@
+model_checkpoint_path: "oracle2_3"
+all_model_checkpoint_paths: "../../100/oracle2_3/oracle2_3"
+all_model_checkpoint_paths: "oracle2_3"

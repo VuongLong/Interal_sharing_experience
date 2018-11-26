@@ -107,13 +107,13 @@ def training(test_time, map_index, share_exp, oracle, num_episide, num_epoch):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--num_epoch", type=int, default = 1000)
-	parser.add_argument("--num_episode", nargs='+', type=int, default = [8, 16, 24])
+	parser.add_argument("--num_episode", nargs='+', type=int, default = [8,16,24])
 	
 	args = parser.parse_args()
 
-	map_index = 2
+	map_index = 3
 	for num_ep in args.num_episode:
-		#training(test_time=num_ep, map_index=map_index, share_exp = False, oracle=False, num_episide =num_ep, num_epoch =args.num_epoch)
+		training(test_time=num_ep, map_index=map_index, share_exp = False, oracle=False, num_episide =num_ep, num_epoch =args.num_epoch)
 		training(test_time=num_ep, map_index=map_index, share_exp = True, oracle=True, num_episide = num_ep, num_epoch =args.num_epoch)
 		training(test_time=num_ep, map_index=map_index, share_exp = True, oracle=False, num_episide = num_ep, num_epoch =args.num_epoch)
 
