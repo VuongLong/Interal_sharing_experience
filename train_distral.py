@@ -16,7 +16,7 @@ from env.sxsy import SXSY
 
 def training(map_index, num_task, logdir, batch_size=128, gamma=0.999, alpha=0.9,
             beta=5, eps_start=0.9, eps_end=0.05, eps_decay=5,
-            is_plot=False, num_episodes=200, max_num_ep_per_episode=1000,
+            is_plot=False, num_episodes=10000, max_num_ep_per_episode=1000,
             learning_rate=0.001, memory_replay_size=10000,
             memory_policy_size=1000):
     if not os.path.isdir(logdir):
@@ -64,6 +64,7 @@ def training(map_index, num_task, logdir, batch_size=128, gamma=0.999, alpha=0.9
             state = env.player.getposition()
             state_index = state[0]+(state[1]-1)*env.bounds_x[1]-1
             state = env.cv_state_onehot[state_index]
+            # print(state)
             state = Tensor([state])
 
             action = select_action(state, policy, models[task], num_actions,
@@ -72,20 +73,21 @@ def training(map_index, num_task, logdir, batch_size=128, gamma=0.999, alpha=0.9
             steps_done[task] += 1
             current_time[task] += 1
             try:
-                reward, done = env.player.action(action)
+                reward, done = env.player.action(action[0,0])
             except:
                 print(action)
                 raise
             episode_total_reward[task] += reward
             reward = Tensor([reward])
 
-            if not done:
+            if done or current_time[task] > max_num_ep_per_episode:
+                next_state = None
+                done = True
+            else:
                 next_state = env.player.getposition()
                 state_index = next_state[0]+(next_state[1]-1)*env.bounds_x[1]-1
                 next_state = env.cv_state_onehot[state_index]
                 next_state = Tensor([next_state])
-            else:
-                next_state = None
 
             time = Tensor([current_time[task]])
             memories[task].push(state, action, next_state, reward, time)
@@ -115,4 +117,4 @@ def training(map_index, num_task, logdir, batch_size=128, gamma=0.999, alpha=0.9
     print('Complete')
 
 if __name__ == '__main__':
-    training(1, 2, 'output/log')
+    training(1, 2, 'output/log2')
