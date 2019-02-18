@@ -1,35 +1,30 @@
-from env.terrain import Terrain
 import numpy as np           # Handle matrices
-import random                # Handling random number generation
-import time                  # Handling time calculation
-import math
-from rollout_thread import RolloutThread
 import threading
-import random
-from random import randint
-from env.sxsy import SXSY
+
+from rollout_thread import RolloutThread
 
 class Rollout(object):
 	
 	def __init__(
 		self,
-		number_episode,
-		map_index):
+		num_task,
+		num_episode,
+		scene_name):
 		
-		self.number_episode = number_episode
-		self.map_index = map_index
-		self.env = Terrain(map_index)
+		self.num_episode = num_episode
+		self.scene_name = scene_name
+		self.num_task = num_task
 
 		self.states, self.tasks, self.actions, self.rewards, self.next_states, self.redundant_steps = [],[],[],[],[],[]
 
-		for task in range(self.env.num_task):
+		for task in range(self.num_task):
 			self.states.append([])
 			self.tasks.append([])
 			self.actions.append([])
 			self.rewards.append([])
 			self.next_states.append([])
 			self.redundant_steps.append([])
-			for i in range(self.number_episode):
+			for i in range(self.num_episode):
 				self.states[task].append([])
 				self.tasks[task].append([])
 				self.actions[task].append([])
@@ -37,15 +32,11 @@ class Rollout(object):
 				self.next_states[task].append([])
 				self.redundant_steps[task].append([])
 
-	def _rollout_process(self, sess, index, network, task, sx, sy, current_policy):
+	def _rollout_process(self, index, task, current_policy):
 		thread_rollout = RolloutThread(
-									sess = sess,
-									network = network,
 									task = task,
-									start_x = sx,
-									start_y = sy,
 									policy = current_policy,
-									map_index = self.map_index)
+									scene_name = self.scene_name)
 
 		ep_states, ep_tasks, ep_actions, ep_rewards, ep_next_states, ep_redundant_steps = thread_rollout.rollout()
 		
@@ -57,16 +48,16 @@ class Rollout(object):
 		self.redundant_steps[task][index] = ep_redundant_steps
 
 
-	def rollout_batch(self, sess, network, policy, epoch):
+	def rollout_batch(self, policy, epoch):
 		self.states, self.tasks, self.actions, self.rewards, self.next_states, self.redundant_steps = [],[],[],[],[],[]
-		for task in range(self.env.num_task):
+		for task in range(self.num_task):
 			self.states.append([])
 			self.tasks.append([])
 			self.actions.append([])
 			self.rewards.append([])
 			self.next_states.append([])
 			self.redundant_steps.append([])
-			for i in range(self.number_episode):
+			for i in range(self.num_episode):
 				self.states[task].append([])
 				self.tasks[task].append([])
 				self.actions[task].append([])
@@ -75,19 +66,9 @@ class Rollout(object):
 				self.redundant_steps[task].append([])
 
 		train_threads = []
-		for task in range(self.env.num_task):
-			'''
-			sx = 0
-			sy = 0
-			while self.env.MAP[sy][sx]==0:    
-				sx = randint(1,self.env.bounds_x[1]) 
-				sy = randint(1,self.env.bounds_y[1]) 
-			'''
-			index = 0
-			for i in range(self.number_episode):
-				[sx, sy] = SXSY[self.map_index][epoch%2000][i]
-				train_threads.append(threading.Thread(target=self._rollout_process, args=(sess, index, network, task, sx, sy, policy,)))
-				index+=1	
+		for task in range(self.num_task):
+			for index in range(self.num_episode):
+				train_threads.append(threading.Thread(target=self._rollout_process, args=(index, task, policy,)))
 
 		# start each training thread
 		for t in train_threads:

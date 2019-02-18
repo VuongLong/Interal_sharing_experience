@@ -1,73 +1,56 @@
-from env.terrain import Terrain
 import numpy as np           # Handle matrices
-import random                # Handling random number generation
-import time                  # Handling time calculation
-import math
-from collections import deque# Ordered collection with ends
-import matplotlib.pyplot as plt # Display graphs
 import sys
+
+from env.constants import TASK_LIST
+from env.scene_loader import THORDiscreteEnvironment
 
 class RolloutThread(object):
 	
 	def __init__(
 		self,
-		sess,
-		network,
 		task,
-		start_x,
-		start_y,
 		policy,
-		map_index):
+		scene_name):
 	
-		self.sess = sess
-		self.network = network
 		self.task = task
-		self.start_x = start_x
-		self.start_y = start_y
 		self.policy = policy
-		self.env = Terrain(map_index)
-		self.onehot_actions = np.identity(self.env.action_size, dtype=int)
+
+		self.env = THORDiscreteEnvironment({"scene_name":scene_name, "terminal_state_id":[TASK_LIST[scene_name][task]]})
 
 	def rollout(self):
 		states, tasks, actions, rewards, next_states = [], [], [], [], []
 		
-		self.env.resetgame(self.task, self.start_x, self.start_y)
-		state = self.env.player.getposition()
-
-		step = 1	
+		self.env.reset()
+		state = self.env.current_state_id
+		start = state
+		step = 0	
 
 		while True:
-			if step > 50:
-				#print('re-rollout')
-				#sys.stdout.flush()
-				break
-				#states, tasks, actions, rewards = [], [], [], []
-				#step = 1
-				#self.env.resetgame(self.task, self.start_x, self.start_y)
-				#state = self.env.player.getposition()
+	
+			action = np.random.choice(range(len(self.policy[state, self.task])), 
+										  p=np.array(self.policy[state, self.task])/sum(self.policy[state, self.task]))  # select action w.r.t the actions prob
 
-
-			action = np.random.choice(range(len(self.policy[state[0],state[1],self.task])), 
-										  p=np.array(self.policy[state[0],state[1],self.task])/sum(self.policy[state[0],state[1],self.task]))  # select action w.r.t the actions prob
-
-			reward, done = self.env.player.action(action)
+			self.env.step(action)
 			
-			next_state = self.env.player.getposition()
+			next_state = self.env.current_state_id
 			
 			# Store results
 			states.append(state)
 			tasks.append(self.task)
 
 			actions.append(action)
-			rewards.append(reward)
+			rewards.append(self.env.reward)
 			next_states.append(next_state)
 			state = next_state
 			
-			if done:     
+			if self.env.terminal:     
 				break
 
 			step+=1
 
-		redundant_steps = step + self.env.min_step[self.task][states[-1][0], states[-1][1]] - self.env.min_step[self.task][self.start_x, self.start_y]
+			if step > 50:
+				break
+
+		redundant_steps = step + self.env.shortest_path_distances[state, self.env.target[self.task]] - self.env.shortest_path_distances[start, self.env.target[self.task]]
 
 		return states, tasks, actions, rewards, next_states, redundant_steps
