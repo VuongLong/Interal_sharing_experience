@@ -5,6 +5,7 @@ import numpy as np           # Handle matrices
 import os
 import time
 
+from utils import LinearSchedule
 from rollout import Rollout
 from env.map import ENV_MAP
 from env.constants import ACTION_SIZE, STATE_SIZE, TASK_LIST
@@ -26,6 +27,7 @@ class MultitaskPolicy(object):
 			save_model,
 			num_task,
 			num_episode,
+			num_step,
 			share_exp,
 			oracle
 			):
@@ -44,6 +46,7 @@ class MultitaskPolicy(object):
 
 		self.num_task = num_task
 		self.num_episode =  num_episode
+		self.num_step = num_step
 		self.oracle = oracle
 		self.share_exp = share_exp
 
@@ -51,7 +54,7 @@ class MultitaskPolicy(object):
 
 		self.env = THORDiscreteEnvironment({"scene_name":self.scene_name, "terminal_state_id":TASK_LIST[self.scene_name]})
 
-		self.rollout = Rollout(self.num_task, self.num_episode, self.scene_name)
+		self.rollout = Rollout(self.num_task, self.num_episode, self.num_step, self.scene_name)
 
 	def _discount_rewards(self, episode_rewards, episode_states, episode_nexts, task, current_value):
 		discounted_episode_rewards = np.zeros_like(episode_rewards)
@@ -358,14 +361,14 @@ class MultitaskPolicy(object):
 		return batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, z_ss, z_as, z_rs
 	
 
-	def _make_batch(self, sess, epoch):
+	def _make_batch(self, sess, epoch, epsilon):
 		current_policy, current_value, current_oracle = self._prepare_current_policy(sess, epoch)
 
 		# states = [
 		#task1		[[---episode_1---],...,[---episode_n---]],
 		#task2		[[---episode_1---],...,[---episode_n---]]
 		#			]
-		states, tasks, actions, rewards, next_states, redundant_steps = self.rollout.rollout_batch(current_policy, epoch)     
+		states, tasks, actions, rewards, next_states, redundant_steps = self.rollout.rollout_batch(current_policy, epoch, epsilon)     
 
 		discounted_rewards, GAEs = [], []
 		for task in range(self.num_task):
@@ -388,7 +391,7 @@ class MultitaskPolicy(object):
 		return batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, rewards, redundant_steps, z_ss, z_as, z_rs
 		
 		
-	def train(self, sess,pretrain_dir):
+	def train(self, sess, pretrain_dir):
 		#run with saved initial model
 		for task_index in range(self.num_task):
 			if  self.pretrain[task_index]==1:
@@ -398,12 +401,14 @@ class MultitaskPolicy(object):
 		epoch = 1
 		num_sample = 0
 		start = time.time()
+
+		epsilon_schedule = LinearSchedule(self.num_epochs, final_p=0.02)
 		while epoch < self.num_epochs + 1:
 			print("Elapsed time: {:.3f}: {}/{}".format((time.time() - start) / 3600, epoch, self.num_epochs), end='\r', flush=True)
 			
 			#---------------------------------------------------------------------------------------------------------------------#	
 			#ROLOUT state_dict
-			batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, rewards_mb, redundant_steps, z_ss, z_as, z_rs  = self._make_batch(sess, epoch)
+			batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, rewards_mb, redundant_steps, z_ss, z_as, z_rs  = self._make_batch(sess, epoch, epsilon_schedule.value(epoch + 1))
 			#---------------------------------------------------------------------------------------------------------------------#	
 		
 			#---------------------------------------------------------------------------------------------------------------------#	

@@ -1,6 +1,8 @@
-import numpy as np           # Handle matrices
+import numpy as np
+import random
 import sys
 
+from utils import noise_and_argmax
 from env.constants import TASK_LIST
 from env.scene_loader import THORDiscreteEnvironment
 
@@ -9,15 +11,20 @@ class RolloutThread(object):
 	def __init__(
 		self,
 		task,
+		num_step,
 		policy,
 		scene_name):
-	
+		
+		self.num_step = num_step
 		self.task = task
 		self.policy = policy
 
-		self.env = THORDiscreteEnvironment({"scene_name":scene_name, "terminal_state_id":[TASK_LIST[scene_name][task]]})
+		self.env = THORDiscreteEnvironment({"scene_name":scene_name, 
+											"terminal_state_id":[TASK_LIST[scene_name][task]],
+											"training_area": 10,
+											"success_reward": 1.0})
 
-	def rollout(self):
+	def rollout(self, epsilon):
 		states, tasks, actions, rewards, next_states = [], [], [], [], []
 		
 		self.env.reset()
@@ -27,8 +34,13 @@ class RolloutThread(object):
 
 		while True:
 	
-			action = np.random.choice(range(len(self.policy[state, self.task])), 
-										  p=np.array(self.policy[state, self.task])/sum(self.policy[state, self.task]))  # select action w.r.t the actions prob
+			rand = random.random()
+			if rand < epsilon:
+				action = np.random.choice(range(self.env.action_size))
+			else:
+				action = np.random.choice(range(len(self.policy[state, self.task])), 
+											  p=np.array(self.policy[state, self.task])/sum(self.policy[state, self.task]))  # select action w.r.t the actions prob
+				
 
 			self.env.step(action)
 			
@@ -48,7 +60,7 @@ class RolloutThread(object):
 
 			step+=1
 
-			if step > 50:
+			if step > self.num_step:
 				break
 
 		redundant_steps = step + self.env.shortest_path_distances[state, self.env.target[self.task]] - self.env.shortest_path_distances[start, self.env.target[self.task]]

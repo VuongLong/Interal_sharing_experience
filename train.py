@@ -11,7 +11,7 @@ from multitask_policy import MultitaskPolicy
 import argparse
 
 
-def training(test_time, scene_name, num_task, share_exp, oracle, num_episode, num_epoch):
+def training(test_time, scene_name, num_task, share_exp, oracle, num_episode, num_epoch, num_step):
 	tf.reset_default_graph()
 	
 	learning_rate= 0.005
@@ -92,6 +92,7 @@ def training(test_time, scene_name, num_task, share_exp, oracle, num_episode, nu
 									save_model = 100,
 									num_task = num_task,
 									num_episode = num_episode,
+									num_step = num_step,
 									share_exp = share_exp,
 									oracle = oracle
 									)
@@ -103,14 +104,15 @@ def training(test_time, scene_name, num_task, share_exp, oracle, num_episode, nu
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--num_epoch", type=int, default = 1000)
+	parser.add_argument("--num_step", type=int, default = 100)
 	parser.add_argument("--num_episode", nargs='+', type=int, default = [8,16,24])
 	
 	args = parser.parse_args()
 
-	scene_name = "kitchen_02"
+	scene_name = "bathroom_02"
 	start = time.time()
-	for num_ep in args.num_episode:
-		training(test_time=num_ep, scene_name=scene_name, num_task=1, share_exp=False, oracle=False, num_episode=num_ep, num_epoch=args.num_epoch)
+	for num_step in [100, 150, 200]:
+		training(test_time=num_step, scene_name=scene_name, num_task=1, share_exp=False, oracle=False, num_episode=24, num_epoch=args.num_epoch, num_step=num_step)
 		# training(test_time=num_ep, scene_name=scene_name, share_exp = True, oracle=True, num_episode = num_ep, num_epoch =args.num_epoch)
 		# training(test_time=num_ep, scene_name=scene_name, share_exp = True, oracle=False, num_episode = num_ep, num_epoch =args.num_epoch)
 

@@ -38,6 +38,8 @@ class THORDiscreteEnvironment(object):
     self.transition_graph = self.h5_file['graph'][()]
     self.shortest_path_distances = self.h5_file['shortest_path_distance'][()]
 
+    self.training_area = config.get('training_area', np.max(self.shortest_path_distances))
+
     self.history_length = HISTORY_LENGTH
 
     # we use pre-computed fc7 features from ResNet-50
@@ -53,14 +55,10 @@ class THORDiscreteEnvironment(object):
     # randomize initial state
     while True:
       k = random.randrange(self.n_locations)
-      min_d = np.inf
       # check if target is reachable
-      for t_state in self.terminal_states:
-        dist = self.shortest_path_distances[k][t_state]
-        min_d = min(min_d, dist)
-      # min_d = 0  if k is a terminal state
-      # min_d = -1 if no terminal state is reachable from k
-      if min_d > 0: break
+      dist = [self.shortest_path_distances[k][t_state] for t_state in self.terminal_states]
+      if dist[0] < self.training_area and dist[0] > 0:
+        break
 
     # reset parameters
     self.current_state_id = k
