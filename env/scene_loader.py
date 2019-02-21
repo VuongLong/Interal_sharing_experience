@@ -8,61 +8,44 @@ import os
 from .constants import ACTION_SIZE
 from .constants import HISTORY_LENGTH
 
-class THORDiscreteEnvironment(object):
+class PyGameDumpEnv(object):
 
   def __init__(self, config=dict()):
 
     # configurations
-    self.scene_name          = config.get('scene_name', 'bedroom_04')
-    self.random_start        = config.get('random_start', True)
-    self.n_feat_per_locaiton = config.get('n_feat_per_locaiton', 1) # 1 for no sampling
-    self.terminal_state_id   = config.get('terminal_state_id', [0])
+    self.scene_name          = config.get('scene_name', 'Pygame_10x10')
     self.anti_collision      = config.get('anti_collision', 0)
+    self.task                = config.get('task', 0)
     self.success_reward      = config.get('success_reward', 10.0)
 
-    self.h5_file_path = config.get('h5_file_path', '{}.h5'.format(self.scene_name))
-    self.h5_file      = h5py.File(os.path.join("env", self.h5_file_path), 'r')
+    self.h5_file_path = config.get('h5_file_path', '{}.hdf5'.format(self.scene_name))
+    self.h5_file      = h5py.File(os.path.join("env/dumped/", self.h5_file_path), 'r')
 
-    self.locations   = self.h5_file['location'][()]
-    self.rotations   = self.h5_file['rotation'][()]
+    self.locations = self.h5_file['locations'][()]
+    self.observations = self.h5_file['observations'][()]
+    self.transition_graph = self.h5_file['graph'][()]
+    self.goals   = self.h5_file['goals'][()]
+
     self.n_locations = self.locations.shape[0]
-
-    self.terminals = np.zeros(self.n_locations)
-    self.terminals[self.terminal_state_id] = 1
-    self.terminal_states, = np.where(self.terminals)
-
     self.cv_action_onehot = np.identity(ACTION_SIZE, dtype=int)
 
-    self.resnet_features = self.h5_file['resnet_feature']
-
-    self.transition_graph = self.h5_file['graph'][()]
-    self.shortest_path_distances = self.h5_file['shortest_path_distance'][()]
-
-    self.training_area = config.get('training_area', np.max(self.shortest_path_distances))
-
     self.history_length = HISTORY_LENGTH
-
-    # we use pre-computed fc7 features from ResNet-50
-    # self.s_t = np.zeros([self.screen_height, self.screen_width, self.history_length])
-    self.s_t      = np.zeros([2048, self.history_length])
-    self.s_target = self._tiled_state(self.terminal_state_id)
-
+    self.resolution = self.observations[0].shape
+    self.history_states = np.zeros([self.history_length, self.resolution[0], self.resolution[1], self.resolution[2]])
     self.reset()
-
-  # public methods
 
   def reset(self):
     # randomize initial state
-    while True:
-      k = random.randrange(self.n_locations)
-      # check if target is reachable
-      dist = [self.shortest_path_distances[k][t_state] for t_state in self.terminal_states]
-      if dist[0] < self.training_area and dist[0] > 0:
-        break
-
+    # while True:
+    #   k = random.randrange(self.n_locations)
+    #   # check if target is reachable
+    #   dist = [self.shortest_path_distances[k][t_state] for t_state in self.terminal_states]
+    #   if dist[0] < self.training_area and dist[0] > 0:
+    #     break
+    k = random.randrange(self.n_locations)
     # reset parameters
     self.current_state_id = k
-    self.s_t = self._tiled_state(self.current_state_id)
+    self.update_states()
 
     self.reward   = 0
     self.collided = False
@@ -73,7 +56,7 @@ class THORDiscreteEnvironment(object):
     k = self.current_state_id
     if self.transition_graph[k][action] != -1:
       self.current_state_id = self.transition_graph[k][action]
-      if self.terminals[self.current_state_id]:
+      if np.all(self.locations[self.current_state_id] == self.goals[self.task]):
         self.terminal = True
         self.collided = False
       else:
@@ -87,10 +70,9 @@ class THORDiscreteEnvironment(object):
 
   # private methods
 
-  def _tiled_state(self, state_id):
-    k = random.randrange(self.n_feat_per_locaiton)
-    f = self.resnet_features[state_id][k][:,np.newaxis]
-    return np.tile(f, (1, self.history_length))
+  def update_states(self):
+    o = self.observations[self.current_state_id]
+    self.history_states = np.append(self.history_states[1:, :], np.expand_dims(o, 0), 0)
 
   def _reward(self, terminal, collided):
     # positive reward upon task completion
@@ -99,9 +81,7 @@ class THORDiscreteEnvironment(object):
     return -0.1 if collided and self.anti_collision else -0.01
 
   def state(self, state_id):
-    # read from hdf5 cache
-    k = random.randrange(self.n_feat_per_locaiton)
-    return self.resnet_features[state_id][k]
+    return self.observations[state_id]
 
   # properties
   @property
@@ -111,28 +91,16 @@ class THORDiscreteEnvironment(object):
 
   @property
   def action_definitions(self):
-    action_vocab = ["MoveForward", "RotateRight", "RotateLeft", "MoveBackward"]
+    action_vocab = ["MoveForward", "MoveBackward", "RotateLeft", "RotateRight"]
     return action_vocab[:ACTION_SIZE]
 
   @property
   def observation(self):
-    return self.h5_file['observation'][self.current_state_id]
+    return self.observations[self.current_state_id]
 
   @property
   def target(self):
-    return self.terminal_states
-
-  @property
-  def x(self):
-    return self.locations[self.current_state_id][0]
-
-  @property
-  def z(self):
-    return self.locations[self.current_state_id][1]
-
-  @property
-  def r(self):
-    return self.rotations[self.current_state_id]
+    return self.goals
 
 if __name__ == "__main__":
   scene_name = 'bedroom_04'

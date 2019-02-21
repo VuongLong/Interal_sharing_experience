@@ -1,6 +1,0 @@
-model_checkpoint_path: "oracle1_3"
-all_model_checkpoint_paths: "../../400/oracle1_3/oracle1_3"
-all_model_checkpoint_paths: "../../500/oracle1_3/oracle1_3"
-all_model_checkpoint_paths: "../../600/oracle1_3/oracle1_3"
-all_model_checkpoint_paths: "../../700/oracle1_3/oracle1_3"
-all_model_checkpoint_paths: "oracle1_3"

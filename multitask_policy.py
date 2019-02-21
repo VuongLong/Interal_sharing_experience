@@ -7,34 +7,31 @@ import time
 
 from utils import LinearSchedule
 from rollout import Rollout
-from env.map import ENV_MAP
-from env.constants import ACTION_SIZE, STATE_SIZE, TASK_LIST
-from env.scene_loader import THORDiscreteEnvironment
+from env.constants import ACTION_SIZE
+from env.scene_loader import PyGameDumpEnv
 
 class MultitaskPolicy(object):
 
 	def __init__(
 			self,
 			scene_name,
-			policy,
-			value,
+			networks,
 			oracle_network,
 			writer,
 			write_op,
-			num_epochs,			
 			gamma,
 			plot_model,
 			save_model,
 			num_task,
-			num_episode,
-			num_step,
+			num_epochs,
+			num_episodes,
+			num_steps,
 			share_exp,
 			oracle
 			):
 
 		self.scene_name = scene_name
-		self.PGNetwork = policy
-		self.VNetwork = value
+		self.networks = networks
 		self.ZNetwork = oracle_network
 
 		self.writer = writer
@@ -45,16 +42,18 @@ class MultitaskPolicy(object):
 		self.save_model = save_model
 
 		self.num_task = num_task
-		self.num_episode =  num_episode
-		self.num_step = num_step
+		self.num_episodes =  num_episodes
+		self.num_steps = num_steps
 		self.oracle = oracle
 		self.share_exp = share_exp
 
 		self.pretrain = [0] * self.num_task
 
-		self.env = THORDiscreteEnvironment({"scene_name":self.scene_name, "terminal_state_id":TASK_LIST[self.scene_name]})
+		self.env = PyGameDumpEnv({"scene_name":scene_name,
+								"task": 0,
+								"success_reward": 1.0})
 
-		self.rollout = Rollout(self.num_task, self.num_episode, self.num_step, self.scene_name)
+		self.rollout = Rollout(self.num_task, self.num_episodes, self.num_steps, self.scene_name)
 
 	def _discount_rewards(self, episode_rewards, episode_states, episode_nexts, task, current_value):
 		discounted_episode_rewards = np.zeros_like(episode_rewards)
@@ -101,19 +100,15 @@ class MultitaskPolicy(object):
 		
 		for loc in range(self.env.n_locations):
 			for task in range(self.num_task):
-				p = sess.run(
-							self.PGNetwork[task].pi, 
+				p, v = sess.run(
+							[self.networks[task].actor.pi, self.networks[task].critic.value],
 							feed_dict={
-								self.PGNetwork[task].inputs: [self.env.state(loc).tolist()]})
+								self.networks[task].actor.inputs: [self.env.state(loc)],
+								self.networks[task].critic.inputs: [self.env.state(loc)]})
 			
 				current_policy[loc, task] = p.ravel().tolist()
-
-				v = sess.run(
-							self.VNetwork[task].value, 
-							feed_dict={
-								self.VNetwork[task].inputs: [self.env.state(loc).tolist()]})
-				current_value[loc,task] = v[0][0]
-				current_oracle[loc,task,task] = [0.0,1.0]
+				current_value[loc, task] = v[0][0]
+				current_oracle[loc, task, task] = [0.0, 1.0]
 
 			if self.share_exp and not self.oracle:	
 				for i in range (self.num_task-1):
@@ -121,7 +116,7 @@ class MultitaskPolicy(object):
 						p = sess.run(
 									self.ZNetwork[i,j].oracle, 
 									feed_dict={
-										self.ZNetwork[i,j].inputs: [self.env.state(loc).tolist()]})
+										self.ZNetwork[i,j].inputs: [self.env.state(loc)]})
 						
 
 						current_oracle[x,y,i,j] = p.ravel().tolist()
@@ -288,7 +283,7 @@ class MultitaskPolicy(object):
 										clip_important_weight = 0.8	
 
 									if tidx==task:
-										batch_ss[tidx].append(self.env.state(state_index).tolist())
+										batch_ss[tidx].append(self.env.state(state_index))
 										batch_as[tidx].append(self.env.cv_action_onehot[action])
 										batch_Qs[tidx].append(actual_value)
 										if (important_weight<=1.2 and important_weight>=0.8) or (clip_important_weight*advantage>important_weight*advantage):
@@ -299,11 +294,11 @@ class MultitaskPolicy(object):
 									else:
 										if (important_weight<=1.2 and important_weight>=0.8) or (clip_important_weight*advantage>important_weight*advantage):
 
-											share_ss[tidx].append(self.env.state(state_index).tolist())
+											share_ss[tidx].append(self.env.state(state_index))
 											share_as[tidx].append(self.env.cv_action_onehot[action])
 											share_Ts[tidx].append(important_weight*advantage)
 					else:
-						batch_ss[task].append(self.env.state(state_index).tolist())
+						batch_ss[task].append(self.env.state(state_index))
 						batch_as[task].append(self.env.cv_action_onehot[action])
 						batch_Qs[task].append(actual_value)
 						batch_Ts[task].append(advantage)
@@ -354,7 +349,7 @@ class MultitaskPolicy(object):
 								z_action = [1,0]
 							
 							if z_reward>0.0:
-								z_ss[i,j].append(self.env.state(v).tolist())
+								z_ss[i,j].append(self.env.state(v))
 								z_as[i,j].append(z_action)
 								z_rs[i,j].append(z_reward)
 	
@@ -393,10 +388,10 @@ class MultitaskPolicy(object):
 		
 	def train(self, sess, pretrain_dir):
 		#run with saved initial model
-		for task_index in range(self.num_task):
-			if  self.pretrain[task_index]==1:
-				self.VNetwork[task_index].restore_model(sess,pretrain_dir+"pretrainv")
-				self.PGNetwork[task_index].restore_model(sess,pretrain_dir+"pretrainp")
+		# for task_index in range(self.num_task):
+		# 	if  self.pretrain[task_index]==1:
+		# 		self.VNetwork[task_index].restore_model(sess,pretrain_dir+"pretrainv")
+		# 		self.PGNetwork[task_index].restore_model(sess,pretrain_dir+"pretrainp")
 
 		epoch = 1
 		num_sample = 0
@@ -408,7 +403,9 @@ class MultitaskPolicy(object):
 			
 			#---------------------------------------------------------------------------------------------------------------------#	
 			#ROLOUT state_dict
-			batch_ss, batch_as, batch_Qs, batch_Ts, share_ss, share_as, share_Ts, rewards_mb, redundant_steps, z_ss, z_as, z_rs  = self._make_batch(sess, epoch, epsilon_schedule.value(epoch + 1))
+			batch_ss, batch_as, batch_Qs, batch_Ts,\
+			share_ss, share_as, share_Ts, rewards_mb,\
+			redundant_steps, z_ss, z_as, z_rs  = self._make_batch(sess, epoch, epsilon_schedule.value(epoch + 1))
 			#---------------------------------------------------------------------------------------------------------------------#	
 		
 			#---------------------------------------------------------------------------------------------------------------------#	
@@ -444,31 +441,25 @@ class MultitaskPolicy(object):
 							#self.PGNetwork[task_index].save_model(sess,pretrain_dir+"pretrainp")
 
 							# if not self.oracle:
-								# self.env.save_zmap(pretrain_dir+"z_{}/".format(self.num_episode))
+								# self.env.save_zmap(pretrain_dir+"z_{}/".format(self.num_episodes))
 
 				if epoch % self.save_model == 0 and not self.oracle:
 					for i in range(self.num_task-1):
 						for j in range(i+1,self.num_task):	
-							self.ZNetwork[i,j].save_model(sess, pretrain_dir+"z_{}/{}/".format(self.num_episode, epoch))
+							self.ZNetwork[i,j].save_model(sess, pretrain_dir+"z_{}/{}/".format(self.num_episodes, epoch))
 
-			else:#base_line vanilla policy gradient
+			else:# base_line vanilla policy gradient
 				for task_index in range(self.num_task):
 					if  self.pretrain[task_index]==0:
-						loss,_ =sess.run([self.VNetwork[task_index].loss, self.VNetwork[task_index].train_opt], feed_dict={
-																	self.VNetwork[task_index].inputs: batch_ss[task_index],
-																	self.VNetwork[task_index].rewards: batch_Qs[task_index] 
-																	})	
-			
-						sess.run([self.PGNetwork[task_index].train_opt], feed_dict={
-																			self.PGNetwork[task_index].inputs: batch_ss[task_index],
-																			self.PGNetwork[task_index].actions: batch_as[task_index],
-																			self.PGNetwork[task_index].rewards: batch_Ts[task_index]
-																			})
-						
+						policy_loss, value_loss, _, _ = self.networks[task_index].learn(sess, 
+																	actor_states = batch_ss[task_index],
+																	advantages = batch_Ts[task_index],
+																	actions = batch_as[task_index],
+																	critic_states = batch_ss[task_index],
+																	returns = batch_Qs[task_index]
+																)
+
 			#---------------------------------------------------------------------------------------------------------------------#	
-			
-
-
 			#---------------------------------------------------------------------------------------------------------------------#	
 			# WRITE TF SUMMARIES
 			sum_dict = {}
@@ -481,14 +472,14 @@ class MultitaskPolicy(object):
 					total_reward_of_that_batch += np.sum(rewards_mb[task_index])
 					task_redundant.append(redundant_steps[task_index])
 
-				sum_dict[self.PGNetwork[task_index].mean_reward] = np.divide(np.sum(rewards_mb[task_index]), self.num_episode)
-				sum_dict[self.PGNetwork[task_index].mean_redundant] = redundant_steps[task_index]
+				sum_dict[self.networks[task_index].mean_reward] = np.divide(np.sum(rewards_mb[task_index]), self.num_episodes)
+				sum_dict[self.networks[task_index].mean_redundant] = redundant_steps[task_index]
 
 			total_reward_of_that_batch /= self.pretrain.count(0)		
-			mean_reward_of_that_batch = np.divide(total_reward_of_that_batch, self.num_episode)
+			mean_reward_of_that_batch = np.divide(total_reward_of_that_batch, self.num_episodes)
 			
-			sum_dict[self.PGNetwork[0].total_mean_reward] = mean_reward_of_that_batch
-			sum_dict[self.PGNetwork[0].average_mean_redundant] = np.mean(task_redundant)
+			sum_dict[self.networks[0].total_mean_reward] = mean_reward_of_that_batch
+			sum_dict[self.networks[0].average_mean_redundant] = np.mean(task_redundant)
 			
 			summary = sess.run(self.write_op, feed_dict=sum_dict)
 
