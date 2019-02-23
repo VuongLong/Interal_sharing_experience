@@ -44,8 +44,42 @@ class PyGameDumpEnv(object):
             [2,9,2,15,15,15,5,15,15,2],
             [5,9,2,15,15,15,5,15,15,2],
             [2,2,2,2,2,2,2,2,2,2]]
-            
+
+    self.min_dist = self.cal_min_dist(self.task)
     self.reset()
+
+  def cal_min_dist(self, task_idx):
+    distance = np.zeros((len(self.MAP), len(self.MAP[0]))) - 1
+    target = (self.goals[task_idx] - 0.5).astype(int)
+    distance[target[0], target[1]] = 0
+    move = [[0, 1], [0, -1], [1, 0], [-1, 0]]
+
+    visisted = {}
+    for i in range(distance.shape[0]):
+        for j in range(distance.shape[1]):
+            visisted[i, j] = False
+
+    queue = []
+    queue.append(target)
+
+    while len(queue) > 0:
+        pos = queue[0]
+        queue = queue[1:]
+
+        visisted[pos[0], pos[1]] = True
+
+        for m in move:
+
+            neighbor = [pos[0] + m[0], pos[1] + m[1]]
+            if self.MAP[neighbor[0]][neighbor[1]] != 0:
+                continue 
+
+            if not visisted[neighbor[0], neighbor[1]]:
+                distance[neighbor[0], neighbor[1]] = distance[pos[0], pos[1]] + 1           
+                queue.append(neighbor)
+                visisted[neighbor[0], neighbor[1]] = True
+
+    return distance
 
   def reset(self):
     # randomize initial state

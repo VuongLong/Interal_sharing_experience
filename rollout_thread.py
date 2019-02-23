@@ -28,7 +28,7 @@ class RolloutThread(object):
 		
 		self.env.reset()
 		state = self.env.current_state_id
-		start = state
+		start = self.env.locations[state].astype(int).tolist()
 		step = 0	
 
 		while True:
@@ -65,7 +65,8 @@ class RolloutThread(object):
 			if step > self.num_step:
 				break
 
-		# redundant_steps = step + self.env.shortest_path_distances[state, self.env.target[self.task]] - self.env.shortest_path_distances[start, self.env.target[self.task]]
-		redundant_steps = 0
+		end = self.env.locations[state].astype(int).tolist()
+
+		redundant_steps = step + self.env.min_dist[end[0], end[1]] - self.env.min_dist[start[0], start[1]]
 
 		return states, tasks, actions, rewards, next_states, redundant_steps
