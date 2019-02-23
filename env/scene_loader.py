@@ -50,7 +50,7 @@ class PyGameDumpEnv(object):
 
   def cal_min_dist(self, task_idx):
     distance = np.zeros((len(self.MAP), len(self.MAP[0]))) - 1
-    target = (self.goals[task_idx] - 0.5).astype(int)
+    target = self.goals[task_idx].astype(int).tolist()
     distance[target[0], target[1]] = 0
     move = [[0, 1], [0, -1], [1, 0], [-1, 0]]
 
@@ -71,7 +71,7 @@ class PyGameDumpEnv(object):
         for m in move:
 
             neighbor = [pos[0] + m[0], pos[1] + m[1]]
-            if self.MAP[neighbor[0]][neighbor[1]] != 0:
+            if self.MAP[neighbor[0]][neighbor[1]] in [2,3,4,5]:
                 continue 
 
             if not visisted[neighbor[0], neighbor[1]]:
@@ -103,7 +103,7 @@ class PyGameDumpEnv(object):
     k = self.current_state_id
     if self.transition_graph[k][action] != -1:
       self.current_state_id = self.transition_graph[k][action]
-      if np.all(self.locations[self.current_state_id] == self.goals[self.task]):
+      if np.all(self.locations[self.current_state_id][:2] == self.goals[self.task]):
         self.terminal = True
         self.collided = False
       else:

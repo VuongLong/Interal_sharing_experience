@@ -1,6 +1,7 @@
 import numpy as np           # Handle matrices
 import threading
 
+from env.starts import sxsy
 from rollout_thread import RolloutThread
 
 class Rollout(object):
@@ -35,9 +36,10 @@ class Rollout(object):
 				self.next_states[task].append([])
 				self.redundant_steps[task].append([])
 
-	def _rollout_process(self, index, task, current_policy, epsilon):
+	def _rollout_process(self, index, task, start, current_policy, epsilon):
 		thread_rollout = RolloutThread(
 									task = task,
+									start = start,
 									num_step = self.num_step,
 									policy = current_policy,
 									scene_name = self.scene_name)
@@ -72,7 +74,8 @@ class Rollout(object):
 		train_threads = []
 		for task in range(self.num_task):
 			for index in range(self.num_episode):
-				train_threads.append(threading.Thread(target=self._rollout_process, args=(index, task, policy, epsilon)))
+				start = sxsy[task][epoch][index]
+				train_threads.append(threading.Thread(target=self._rollout_process, args=(index, task, start, policy, epsilon)))
 
 		# start each training thread
 		for t in train_threads:

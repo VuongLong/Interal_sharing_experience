@@ -10,11 +10,13 @@ class RolloutThread(object):
 	def __init__(
 		self,
 		task,
+		start,
 		num_step,
 		policy,
 		scene_name):
 		
 		self.num_step = num_step
+		self.start = start
 		self.task = task
 		self.policy = policy
 
@@ -27,8 +29,9 @@ class RolloutThread(object):
 		states, tasks, actions, rewards, next_states = [], [], [], [], []
 		
 		self.env.reset()
-		state = self.env.current_state_id
-		start = self.env.locations[state].astype(int).tolist()
+		self.env.current_state_id = self.start
+		state = self.start
+		start = self.env.locations[state].astype(int)
 		step = 0	
 
 		while True:
