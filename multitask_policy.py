@@ -3,6 +3,7 @@
 import tensorflow as tf      # Deep Learning library
 import numpy as np           # Handle matrices
 import os
+import sys
 import time
 
 from utils import LinearSchedule
@@ -107,6 +108,9 @@ class MultitaskPolicy(object):
 								self.networks[task].critic.inputs: [self.env.state(loc)]})
 			
 				current_policy[loc, task] = p.ravel().tolist()
+				if sum(current_policy[loc, task]) == 0:
+					print(current_policy[loc, task])
+
 				current_value[loc, task] = v[0][0]
 				current_oracle[loc, task, task] = [0.0, 1.0]
 
@@ -157,29 +161,29 @@ class MultitaskPolicy(object):
 				for i, (state, action, actual_value, gae, next_state) in enumerate(zip(states[task], actions[task], drewards[task], GAEs[task], next_states[task])):	
 					state_index = state
 					advantage = actual_value - current_value[state, task]
-					if use_gae==1:
+					if use_gae == 1:
 						advantage = gae		
 					#############################################################################################################
-					if state_dict.get(state_index,-1)==-1:
-						state_dict[state_index]=[]
-						count_dict[state_index]=[]
+					if state_dict.get(state_index,-1) == -1:
+						state_dict[state_index] = []
+						count_dict[state_index] = []
 						for tidx in range(self.num_task):
 							state_dict[state_index].append([0.0] * self.env.action_size)
 							count_dict[state_index].append([0] * self.env.action_size)
 							
-					state_dict[state_index][task][action]+=advantage
-					count_dict[state_index][task][action]+=1
-					next_dict[state_index, action]=[state, next_state]
+					state_dict[state_index][task][action] += advantage
+					count_dict[state_index][task][action] += 1
+					next_dict[state_index, action] = [state, next_state]
 					#############################################################################################################
 
 		
 		share_dict = {}
 		mean_sa_dict = {}
 		for task in range(self.num_task):
-			if  self.pretrain[task]==0:
+			if  self.pretrain[task] == 0:
 				for i, (state, action, actual_value, gae, next_state) in enumerate(zip(states[task], actions[task], drewards[task], GAEs[task], next_states[task])):	
 					state_index = state
-
+					loc = self.env.locations[state_index].tolist()
 					count_a = 1
 					advantage = actual_value - current_value[state, task]
 					if use_gae==1:
@@ -192,17 +196,17 @@ class MultitaskPolicy(object):
 						
 						if self.oracle:
 							#GET SHARE INFORMATION FROM ORACLE MAP #############################################################
-							if share_dict.get(state_index,-1)==-1:
+							if share_dict.get(state_index, -1) == -1:
 								share_dict[state_index] = []
-								share_info = bin(self.env.MAP[state[1]][state[0]])[2:].zfill(self.num_task*self.num_task)
+								share_info = bin(self.env.MAP[int(loc[0])][int(loc[1])])[2:].zfill(self.num_task * self.num_task)
 								for tidx in range(self.num_task):
-										share_dict[state_index].append([])
-										share_info_task = share_info[tidx*self.num_task:(tidx+1)*self.num_task]
-										for otidx in range(self.num_task):
-											if share_info_task[otidx]=='1':
-												share_dict[state_index][tidx].append(1)
-											else:
-												share_dict[state_index][tidx].append(0)
+									share_dict[state_index].append([])
+									share_info_task = share_info[tidx*self.num_task:(tidx+1)*self.num_task]
+									for otidx in range(self.num_task):
+										if share_info_task[otidx] == '1':
+											share_dict[state_index][tidx].append(1)
+										else:
+											share_dict[state_index][tidx].append(0)
 							####################################################################################################
 							
 							#TRANSFER ADVANTAGE OF TRAINED TASKS ###############################################################
@@ -210,31 +214,34 @@ class MultitaskPolicy(object):
 								if  self.pretrain[tidx]==1:
 									if share_dict[state_index][task][tidx]==1:
 										count_a += 1
-										advantage += current_value[next_state[0],next_state[1],tidx] +(-0.01)- current_value[state[0],state[1],tidx]
+										advantage += current_value[state_index, tidx] +(-0.01)- current_value[state[0],state[1],tidx]
 							####################################################################################################
 
 							#Calculate distrubtion of combination sample #######################################################	
 							if mean_sa_dict.get((state_index, action),-1)==-1:
-								mean_sa_dict[state_index, action] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+								mean_sa_dict[state_index, action] = [0.0] * self.num_task
 
 								for tidx in range(self.num_task):
-									if  self.pretrain[tidx]==0:
+									if self.pretrain[tidx] == 0:
 										mean_policy_action = 0.0
 										count = 0.0
 										for otidx in range(self.num_task):
-											if  self.pretrain[otidx]==0:
-												if share_dict[state_index][tidx][otidx]==1:
-													mean_policy_action+=(current_policy[state[0], state[1], otidx][action])
-													count+=1	
-										mean_policy_action/=count
-										mean_sa_dict[state_index, action][tidx]=mean_policy_action
+											if self.pretrain[otidx] == 0:
+												if share_dict[state_index][tidx][otidx] == 1:
+													mean_policy_action += current_policy[state_index, otidx][action]
+													count += 1	
+										try:
+											mean_sa_dict[state_index, action][tidx] = mean_policy_action / count
+										except ZeroDivisionError:
+											print(state_index, share_dict[state_index], self.env.locations[state_index], self.env.MAP[int(loc[0])][int(loc[1])])
+											sys.exit("ZeroDivisionError")
 							####################################################################################################
 
 						else:
 							#TRANSFER ADVANTAGE OF TRAINED TASKS ###############################################################
 							
 							for tidx in range(self.num_task):
-								if  self.pretrain[tidx]==1:
+								if self.pretrain[tidx]==1:
 									share_action =np.random.choice(range(len(current_oracle[state[0],state[1],task,tidx])), 
 													  p=np.array(current_oracle[state[0],state[1],task,tidx])/sum(current_oracle[state[0],state[1],task,tidx]))
 									if share_action==1:				
@@ -243,8 +250,8 @@ class MultitaskPolicy(object):
 							####################################################################################################
 
 							#Calculate distrubtion of combination sample #######################################################	
-							if mean_sa_dict.get((state_index, action),-1)==-1:
-								mean_sa_dict[state_index, action] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+							if mean_sa_dict.get((state_index, action), -1) == -1:
+								mean_sa_dict[state_index, action] = [0.0] * self.num_task
 								
 								for tidx in range(self.num_task):
 									if  self.pretrain[tidx]==0:
@@ -259,9 +266,9 @@ class MultitaskPolicy(object):
 										mean_sa_dict[state_index, action][tidx]=mean_policy_action			
 							####################################################################################################
 							
-						advantage /=count_a	
+						advantage /= count_a	
 						for tidx in range(self.num_task):
-							if  self.pretrain[tidx]==0:
+							if self.pretrain[tidx]==0:
 								share_action = 1
 
 								if self.oracle:
@@ -273,8 +280,11 @@ class MultitaskPolicy(object):
 									if tidx > task:
 										self.env.zmap[task, tidx][state[1]][state[0]] += share_action
 
-								if share_action==1:				
-									important_weight = current_policy[state[0],state[1],tidx][action]/mean_sa_dict[state_index, action][tidx]
+								if share_action == 1:				
+									try:
+										important_weight = current_policy[state_index, tidx][action]/mean_sa_dict[state_index, action][tidx]
+									except ZeroDivisionError:
+										important_weight = 1
 									
 									clip_important_weight = important_weight
 									if clip_important_weight > 1.2:
@@ -282,21 +292,22 @@ class MultitaskPolicy(object):
 									if clip_important_weight < 0.8:
 										clip_important_weight = 0.8	
 
-									if tidx==task:
+									if tidx == task:
 										batch_ss[tidx].append(self.env.state(state_index))
 										batch_as[tidx].append(self.env.cv_action_onehot[action])
 										batch_Qs[tidx].append(actual_value)
-										if (important_weight<=1.2 and important_weight>=0.8) or (clip_important_weight*advantage>important_weight*advantage):
-											batch_Ts[tidx].append(important_weight*advantage)
+
+										if (important_weight <= 1.2 and important_weight >= 0.8) or (clip_important_weight*advantage>important_weight*advantage):
+											batch_Ts[tidx].append(important_weight * advantage)
 										else:
 											batch_Ts[tidx].append(advantage)
 
 									else:
-										if (important_weight<=1.2 and important_weight>=0.8) or (clip_important_weight*advantage>important_weight*advantage):
+										if (important_weight <= 1.2 and important_weight >= 0.8) or (clip_important_weight*advantage>important_weight*advantage):
 
 											share_ss[tidx].append(self.env.state(state_index))
 											share_as[tidx].append(self.env.cv_action_onehot[action])
-											share_Ts[tidx].append(important_weight*advantage)
+											share_Ts[tidx].append(important_weight * advantage)
 					else:
 						batch_ss[task].append(self.env.state(state_index))
 						batch_as[task].append(self.env.cv_action_onehot[action])
@@ -305,7 +316,7 @@ class MultitaskPolicy(object):
 
 				#############################################################################################################
 		z_ss, z_as, z_rs = {},{},{}
-		if self.share_exp:
+		if self.share_exp and not self.oracle:
 			for i in range (self.num_task-1):
 				for j in range(i+1,self.num_task):
 					z_ss[i,j] = []
@@ -396,6 +407,7 @@ class MultitaskPolicy(object):
 		epoch = 1
 		num_sample = 0
 		start = time.time()
+		batch_size = 16
 
 		epsilon_schedule = LinearSchedule(self.num_epochs, final_p=0.02)
 		while epoch < self.num_epochs + 1:
@@ -411,8 +423,7 @@ class MultitaskPolicy(object):
 			#---------------------------------------------------------------------------------------------------------------------#	
 			#UPDATE NETWORK
 			
-			if self.share_exp:
-				
+			if self.share_exp and not self.oracle:
 				for i in range (self.num_task-1):
 					for j in range(i+1,self.num_task):
 						if len(z_ss[i,j])>0:
@@ -421,43 +432,30 @@ class MultitaskPolicy(object):
 																self.ZNetwork[i,j].actions: z_as[i,j], 
 																self.ZNetwork[i,j].rewards: z_rs[i,j] 
 																})	
-				for task_index in range(self.num_task):
-					if  self.pretrain[task_index]==0:
-						sess.run([self.VNetwork[task_index].train_opt], feed_dict={
-																	self.VNetwork[task_index].inputs: batch_ss[task_index],
-																	self.VNetwork[task_index].rewards: batch_Qs[task_index] 
-																	})	
-						share_ss[task_index]+=batch_ss[task_index]
-						share_as[task_index]+=batch_as[task_index]
-						share_Ts[task_index]+=batch_Ts[task_index]
 
-						sess.run([self.PGNetwork[task_index].train_opt], feed_dict={
-																	self.PGNetwork[task_index].inputs: share_ss[task_index],
-																	self.PGNetwork[task_index].actions: share_as[task_index],
-																	self.PGNetwork[task_index].rewards: share_Ts[task_index]
-																	})	
-						# if epoch==self.num_epochs and self.oracle:
-							#self.VNetwork[task_index].save_model(sess,pretrain_dir+"pretrainv")
-							#self.PGNetwork[task_index].save_model(sess,pretrain_dir+"pretrainp")
-
-							# if not self.oracle:
-								# self.env.save_zmap(pretrain_dir+"z_{}/".format(self.num_episodes))
-
-				if epoch % self.save_model == 0 and not self.oracle:
-					for i in range(self.num_task-1):
-						for j in range(i+1,self.num_task):	
-							self.ZNetwork[i,j].save_model(sess, pretrain_dir+"z_{}/{}/".format(self.num_episodes, epoch))
-
-			else:# base_line vanilla policy gradient
-				for task_index in range(self.num_task):
-					if  self.pretrain[task_index]==0:
-						policy_loss, value_loss, _, _ = self.networks[task_index].learn(sess, 
-																	actor_states = batch_ss[task_index],
-																	advantages = batch_Ts[task_index],
-																	actions = batch_as[task_index],
-																	critic_states = batch_ss[task_index],
-																	returns = batch_Qs[task_index]
+			for task_index in range(self.num_task):
+				if  self.pretrain[task_index]==0:
+					num_iter = len(batch_ss[task_index]) // batch_size + 1
+					for i in range(num_iter):
+						right = batch_size * (i + 1) if batch_size * (i + 1) < len(batch_ss[task_index]) else len(batch_ss[task_index])
+						left = right - batch_size
+						if self.share_exp and self.oracle:
+							policy_loss, value_loss, _, _ = self.networks[task_index].learn(sess, 
+																	actor_states = batch_ss[task_index][left:right] + share_ss[task_index][left:right],
+																	advantages = batch_Ts[task_index][left:right] + share_Ts[task_index][left:right],
+																	actions = batch_as[task_index][left:right] + share_as[task_index][left:right],
+																	critic_states = batch_ss[task_index][left:right],
+																	returns = batch_Qs[task_index][left:right]
 																)
+						else:
+							policy_loss, value_loss, _, _ = self.networks[task_index].learn(sess, 
+																		actor_states = batch_ss[task_index][left:right],
+																		advantages = batch_Ts[task_index][left:right],
+																		actions = batch_as[task_index][left:right],
+																		critic_states = batch_ss[task_index][left:right],
+																		returns = batch_Qs[task_index][left:right]
+																	)
+
 
 			#---------------------------------------------------------------------------------------------------------------------#	
 			#---------------------------------------------------------------------------------------------------------------------#	

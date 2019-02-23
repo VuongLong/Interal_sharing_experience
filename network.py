@@ -168,12 +168,12 @@ class ZNetwork:
 			self.actions = tf.placeholder(tf.int32, [None, self.action_size])
 			self.rewards = tf.placeholder(tf.float32, [None, ])
 
-			self.W_fc1 = _fc_weight_variable([self.state_size, 256])
-			self.b_fc1 = _fc_bias_variable([256], self.state_size)
+			self.W_fc1 = _fc_weight_variable([self.state_size, 256], name='W_fc1')
+			self.b_fc1 = _fc_bias_variable([256], self.state_size, name="b_fc1")
 			self.fc1 = tf.nn.relu(tf.matmul(self.inputs, self.W_fc1) + self.b_fc1)
 
-			self.W_fc2 = _fc_weight_variable([256, self.action_size])
-			self.b_fc2 = _fc_bias_variable([self.action_size], 256)
+			self.W_fc2 = _fc_weight_variable([256, self.action_size], name='W_fc2')
+			self.b_fc2 = _fc_bias_variable([self.action_size], 256, name="b_fc2")
 			self.logits = tf.matmul(self.fc1, self.W_fc2) + self.b_fc2
 		
 			self.oracle = tf.nn.softmax(self.logits)
@@ -241,10 +241,22 @@ class A2C():
 		self.decay = decay 
 
 		with tf.variable_scope(name + '/actor_opt'):
-			self.train_opt_policy = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.actor.policy_loss)
+			optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
+			if self.max_gradient_norm is not None:
+				gvs = optimizer.compute_gradients(self.actor.policy_loss)
+				capped_gvs = [(tf.clip_by_value(grad, -self.max_gradient_norm, self.max_gradient_norm), var) for grad, var in gvs if grad is not None]
+				self.train_opt_policy = optimizer.apply_gradients(capped_gvs)
+			else:
+				self.train_opt_policy = optimizer.minimize(self.actor.policy_loss)
 
 		with tf.variable_scope(name + '/critic_opt'):
-			self.train_opt_value = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.critic.value_loss)
+			optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
+			if self.max_gradient_norm is not None:
+				gvs = optimizer.compute_gradients(self.critic.value_loss)
+				capped_gvs = [(tf.clip_by_value(grad, -self.max_gradient_norm, self.max_gradient_norm), var) for grad, var in gvs if grad is not None]
+				self.train_opt_value = optimizer.apply_gradients(capped_gvs)
+			else:
+				self.train_opt_value = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.critic.value_loss)
 
 		if self.joint_loss:
 
@@ -252,7 +264,14 @@ class A2C():
 			self.total_loss = self.actor.policy_loss + self.critic.value_loss * self.value_function_coeff - self.entropy * self.entropy_coeff
 
 			with tf.variable_scope(name + '/joint_opt'):
-				self.train_opt_joint = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.total_loss)
+				optimizer = tf.train.RMSPropOptimizer(self.learning_rate)
+				if self.max_gradient_norm is not None:
+					gvs = optimizer.compute_gradients(self.total_loss)
+					capped_gvs = [(tf.clip_by_value(grad, -self.max_gradient_norm, self.max_gradient_norm), var) for grad, var in gvs if grad is not None]
+					self.train_opt_joint = optimizer.apply_gradients(capped_gvs)
+				else:
+					self.train_opt_joint = optimizer(self.learning_rate).minimize(self.total_loss)
+
 
 	def set_lr_decay(self, lr_rate, nvalues):
 		self.learning_rate_decayed = LearningRateDecay(v=lr_rate,

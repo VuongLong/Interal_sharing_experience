@@ -22,7 +22,7 @@ class PyGameDumpEnv(object):
     self.h5_file      = h5py.File(os.path.join("env/dumped/", self.h5_file_path), 'r')
 
     self.locations = self.h5_file['locations'][()]
-    self.observations = self.h5_file['observations'][()]
+    self.observations = self.h5_file['observations'][()].astype(np.float32) / 255.
     self.transition_graph = self.h5_file['graph'][()]
     self.goals   = self.h5_file['goals'][()]
 
@@ -32,6 +32,19 @@ class PyGameDumpEnv(object):
     self.history_length = HISTORY_LENGTH
     self.resolution = self.observations[0].shape
     self.history_states = np.zeros([self.history_length, self.resolution[0], self.resolution[1], self.resolution[2]])
+
+    self.MAP = [
+            [5,4,4,4,2,2,2,2,4,4],
+            [2,9,9,9,9,9,9,4,15,4],
+            [5,9,9,9,9,3,3,15,15,4],
+            [2,9,2,15,2,3,3,3,15,4],
+            [5,9,2,15,2,15,15,15,15,4],
+            [2,9,2,15,2,15,15,15,15,4],
+            [5,9,2,15,2,15,5,15,2,2],
+            [2,9,2,15,15,15,5,15,15,2],
+            [5,9,2,15,15,15,5,15,15,2],
+            [2,2,2,2,2,2,2,2,2,2]]
+            
     self.reset()
 
   def reset(self):

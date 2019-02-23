@@ -20,6 +20,7 @@ class RolloutThread(object):
 
 		self.env = PyGameDumpEnv({"scene_name":scene_name,
 								"task": task,
+								"anti_collision": 1,
 								"success_reward": 1.0})
 
 	def rollout(self, epsilon):
@@ -36,8 +37,12 @@ class RolloutThread(object):
 			if rand < epsilon:
 				action = np.random.choice(range(self.env.action_size))
 			else:
-				action = np.random.choice(range(len(self.policy[state, self.task])), 
-											  p=np.array(self.policy[state, self.task])/sum(self.policy[state, self.task]))  # select action w.r.t the actions prob
+				try:
+					action = np.random.choice(range(len(self.policy[state, self.task])), 
+												  p=np.array(self.policy[state, self.task])/sum(self.policy[state, self.task]))  # select action w.r.t the actions prob
+				except ValueError:
+					print(self.policy[state, self.task])
+					sys.exit()
 				
 			self.env.step(action)
 			
